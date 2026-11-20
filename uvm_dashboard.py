@@ -243,6 +243,17 @@ def parse_date(label: str, years: tuple[int, int]) -> str | None:
         return None
 
 
+def normalize_time(raw: str) -> str:
+    """'6:00 PM', '1 P.M.', '7 p.m,' -> '6 p.m.', '1 p.m.', '7 p.m.'; 'TBA' etc. unchanged."""
+    s = raw.strip()
+    m = re.fullmatch(r'(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\.?[,.]?', s, re.I)
+    if not m:
+        return s.rstrip(",")
+    hour, minute, ampm = m.groups()
+    minutes = f":{minute}" if minute and minute != "00" else ""
+    return f"{int(hour)}{minutes} {ampm.lower()}.m."
+
+
 def parse_schedule_txt(slug: str, text: str) -> Sport:
     lines = text.splitlines()
     name, season = slug, ""
@@ -281,7 +292,7 @@ def parse_schedule_txt(slug: str, text: str) -> Sport:
             sport=slug,
             date=parse_date(label, years),
             date_label=label,
-            time=row.get("Time", "").rstrip(",").replace("p.m,", "p.m."),
+            time=normalize_time(row.get("Time", "")),
             home_away=row.get("At", ""),
             opponent=row.get("Opponent", ""),
             location=row.get("Location", ""),

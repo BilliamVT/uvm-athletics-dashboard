@@ -84,6 +84,10 @@ main.wrap { display: grid; gap: 20px; padding-top: 12px; padding-bottom: 40px;
 section { margin-bottom: 22px; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+/* Fixed, equal panel heights so the Teams section always starts in the same place,
+   whatever sport is selected; extra games scroll inside the panel. */
+.two .panel { height: 372px; overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 640px) { .two .panel { height: 232px; } }
 @media (max-width: 640px) { .two { grid-template-columns: 1fr; } }
 
 .games { list-style: none; margin: 0; padding: 4px 0; }
