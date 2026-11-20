@@ -76,8 +76,19 @@ def _event_lines(sport: dict, game: dict, stamp: str) -> list[str]:
     where = "" if is_meet else ("at " if game["home_away"] == "Away" else "vs ")
     opp = ("#" + game["opp_rank"] + " " if game.get("opp_rank") else
            "(" + game["opp_seed"] + ") " if game.get("opp_seed") else "") + game["opponent"]
-    result = f"{game['result']} " if game.get("result") else ""
-    summary = f"UVM {_short(sport['name'])}: {result}{where}{opp}"
+    # Finished games lead with the outcome so it's visible even in a cut-off title,
+    # like the official UVM calendars: "[W] UVM M Ice Hockey vs Brock (4-2)".
+    # Meets lead with the team finish: "[1st] UVM W Cross Country: Fall Foliage Invite (30 Pts)".
+    result, outcome = game.get("result", ""), game.get("outcome", "")
+    team = f"UVM {_short(sport['name'])}"
+    if outcome and result.startswith(outcome):
+        score = result[len(outcome):].strip()
+        summary = f"[{outcome}] {team} {where}{opp}" + (f" ({score})" if score else "")
+    elif game.get("place"):
+        rank, _, pts = game["place"].partition(",")
+        summary = f"[{rank.strip()}] {team}: {opp}" + (f" ({pts.strip()})" if pts.strip() else "")
+    else:
+        summary = f"{team}: {where}{opp}" if is_meet else f"{team} {where}{opp}"
 
     details = []
     if game.get("tv"):
