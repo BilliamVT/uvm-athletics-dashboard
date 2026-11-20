@@ -17,6 +17,7 @@ python3 hockey_east.py               # print Hockey East standings on their own
 | `hockey_east.py` | Separate scraper for men's and women's Hockey East standings (hockeyeastonline.com). |
 | `rankings.py` | UVM's national rank per sport from the polls on ncaa.com ("#12", "RV" for receiving votes, or unranked). No women's hockey poll there. Opponents' ranks (gold "#9") and tournament seeds ("(2)") come from UVM's own schedule pages. |
 | `dashboard_template.html` | Page layout, styling and the JavaScript that renders the data. Edit this to change the look. |
+| `manifest.webmanifest`, `sw.js`, `icons/` | Home-screen app support: name, icon and full-screen mode, plus a service worker so the installed app opens offline with the last build. `icons/icon.svg` is the source for the PNGs. |
 | `dashboard.html` | Generated output — open in a browser. |
 | `data.json` | Generated raw data, handy for debugging or other uses. |
 | `.cache/` | Cached downloads (safe to delete). |

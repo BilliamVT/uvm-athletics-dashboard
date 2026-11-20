@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Full-bleed square: iOS and Android round the corners themselves. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b5a42"/>
+      <stop offset="1" stop-color="#0f3526"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- Content kept inside the central safe zone so it also works as a maskable icon. -->
+  <g transform="translate(256 256)">
+    <text x="0" y="22" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+          font-weight="800" font-size="150" letter-spacing="-4" fill="#f2c200">UVM</text>
+    <rect x="-118" y="50" width="236" height="12" rx="6" fill="#f2c200"/>
+    <text x="0" y="122" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+          font-weight="700" font-size="40" letter-spacing="9" fill="#ffffff" opacity=".92">SPORTS</text>
+  </g>
+</svg>

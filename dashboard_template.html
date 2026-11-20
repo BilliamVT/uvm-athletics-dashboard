@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>UVM Athletics Dashboard</title>
+<!-- Install as an app ("Add to Home Screen"): icon, name, colors, full-screen mode. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#154734">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="UVM Sports">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
 :root {
   --green: #154734;
@@ -64,10 +73,11 @@ header {
   border-bottom: 4px solid var(--gold);
 }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
-header .wrap { padding-top: 20px; padding-bottom: 16px; display: flex; flex-wrap: wrap; align-items: end; gap: 8px 24px; justify-content: space-between; }
+header .wrap { padding-top: calc(20px + env(safe-area-inset-top)); padding-bottom: 16px; display: flex; flex-wrap: wrap; align-items: end; gap: 8px 24px; justify-content: space-between; }
 h1 { margin: 0; font-size: 26px; letter-spacing: -.01em; }
 h1 span { color: var(--gold); }
-.updated { font-size: 13px; opacity: .8; }
+.updated { font: inherit; font-size: 13px; opacity: .8; background: none; border: 0; color: inherit; padding: 0; cursor: pointer; text-align: right; }
+.updated:hover { opacity: 1; text-decoration: underline; }
 h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
 
 .chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 0 4px; }
@@ -187,6 +197,7 @@ a.ext { color: var(--accent); font-size: 13px; }
 .cust-list li.hidden-team .cname { text-decoration: line-through; }
 .switch-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; cursor: pointer; font-size: 14px; }
 .switch-row input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+footer { padding-bottom: calc(30px + env(safe-area-inset-bottom)) !important; }
 footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
 </style>
 </head>
@@ -194,7 +205,7 @@ footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
 <header>
   <div class="wrap">
     <h1>UVM <span>Catamounts</span></h1>
-    <div class="updated" id="updated"></div>
+    <button class="updated" id="updated" type="button" title="Reload for the latest build"></button>
   </div>
 </header>
 <div class="wrap"><div class="chips" id="chips" role="group" aria-label="Filter by sport"></div></div>
@@ -225,7 +236,7 @@ footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
     </section>
   </aside>
 </main>
-<div class="wrap"><footer>Data scraped from uvmathletics.com, americaeast.com and hockeyeastonline.com for personal use. Gold tags are team finishes at meets. Scores are shown as the site lists them: winner's score first. Re-run <code>python3 uvm_dashboard.py</code> to refresh.</footer></div>
+<div class="wrap"><footer>Data scraped from uvmathletics.com, americaeast.com and hockeyeastonline.com for personal use. Gold tags are team finishes at meets. Scores are shown as the site lists them: winner's score first. Rebuilt daily at 5 AM Eastern; tap the "Updated" time to reload.</footer></div>
 
 <dialog id="cust" aria-labelledby="cust-title">
   <div class="dlg-head">
@@ -537,6 +548,19 @@ function renderNews() {
 
 function render() { fixFilter(); renderChips(); renderGames(); renderTeams(); renderNews(); }
 render();
+
+// ---- App behavior ----
+$("updated").addEventListener("click", () => location.reload());
+// An installed app can sit in the background for days; when it comes back to the
+// front after 30+ minutes, reload so it shows the latest daily build.
+const loadedAt = Date.now();
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && Date.now() - loadedAt > 30 * 60 * 1000) location.reload();
+});
+// Offline support (see sw.js). Only works when served over http(s), not from a local file.
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
 </script>
 </body>
 </html>
