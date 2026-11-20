@@ -202,15 +202,15 @@ footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
   <div>
     <div class="two">
       <section>
+        <div class="sec-head"><h2>Coming up <span id="upcoming-count"></span></h2></div>
+        <div class="panel"><ul class="games" id="upcoming"></ul></div>
+      </section>
+      <section>
         <div class="sec-head">
           <h2>Season results <span id="recent-count"></span></h2>
           <button class="sortbtn" id="sort-results" type="button"></button>
         </div>
         <div class="panel"><ul class="games" id="recent"></ul></div>
-      </section>
-      <section>
-        <div class="sec-head"><h2>Coming up <span id="upcoming-count"></span></h2></div>
-        <div class="panel"><ul class="games" id="upcoming"></ul></div>
       </section>
     </div>
     <section>
@@ -451,8 +451,8 @@ function renderGames() {
   const oldestFirst = prefs.resultsOrder === "oldest";
   const recent = vs.flatMap(s => s.played.map(g => [g, s]))
     .sort((a, b) => oldestFirst ? a[0].date.localeCompare(b[0].date) : b[0].date.localeCompare(a[0].date));
-  $("sort-results").textContent = oldestFirst ? "Oldest first ↑" : "Newest first ↓";
-  $("sort-results").setAttribute("aria-label", `Sort results: ${oldestFirst ? "oldest" : "newest"} first. Click to switch.`);
+  $("sort-results").textContent = oldestFirst ? "Oldest first ↑" : "Recent first ↓";
+  $("sort-results").setAttribute("aria-label", `Sort results: ${oldestFirst ? "oldest" : "most recent"} first. Click to switch.`);
   const upcoming = vs.flatMap(s => s.next.map(g => [g, s]))
     .sort((a, b) => a[0].date.localeCompare(b[0].date));
   const count = (n, word) => n ? `<span class="count">${n} ${word}${n === 1 ? "" : "s"}</span>` : "";
