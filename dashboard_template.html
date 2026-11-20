@@ -84,10 +84,12 @@ main.wrap { display: grid; gap: 20px; padding-top: 12px; padding-bottom: 40px;
 section { margin-bottom: 22px; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-/* Fixed, equal panel heights so the Teams section always starts in the same place,
-   whatever sport is selected; extra games scroll inside the panel. */
-.two .panel { height: 372px; overflow-y: auto; overscroll-behavior: contain; }
-@media (max-width: 640px) { .two .panel { height: 232px; } }
+/* Each panel is as tall as its own list, up to a cap, then scrolls, so a short
+   list never leaves a big empty box. */
+.two { align-items: start; }
+.two .panel { max-height: 372px; overflow-y: auto; overscroll-behavior: contain; }
+@media (max-width: 640px) { .two .panel { max-height: 300px; } }
+h2 .count { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 6px; }
 @media (max-width: 640px) { .two { grid-template-columns: 1fr; } }
 
 .games { list-style: none; margin: 0; padding: 4px 0; }
@@ -183,11 +185,11 @@ footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
   <div>
     <div class="two">
       <section>
-        <h2>Recent results</h2>
+        <h2>Season results <span id="recent-count"></span></h2>
         <div class="panel"><ul class="games" id="recent"></ul></div>
       </section>
       <section>
-        <h2>Coming up</h2>
+        <h2>Coming up <span id="upcoming-count"></span></h2>
         <div class="panel"><ul class="games" id="upcoming"></ul></div>
       </section>
     </div>
@@ -388,14 +390,21 @@ function gameRow(g, s, kind) {
 
 function renderGames() {
   const vs = visible();
-  const recent = vs.flatMap(s => s.played.filter(g => dayDiff(g.date) >= -10).map(g => [g, s]))
-    .sort((a, b) => b[0].date.localeCompare(a[0].date)).slice(0, 12);
-  const upcoming = vs.flatMap(s => s.next.filter(g => dayDiff(g.date) <= 10).map(g => [g, s]))
-    .sort((a, b) => a[0].date.localeCompare(b[0].date)).slice(0, 12);
+  // Whole season so far (newest first) and everything still scheduled (soonest first);
+  // the panels scroll, so nothing is cut off.
+  const recent = vs.flatMap(s => s.played.map(g => [g, s]))
+    .sort((a, b) => b[0].date.localeCompare(a[0].date));
+  const upcoming = vs.flatMap(s => s.next.map(g => [g, s]))
+    .sort((a, b) => a[0].date.localeCompare(b[0].date));
+  const count = (n, word) => n ? `<span class="count">${n} ${word}${n === 1 ? "" : "s"}</span>` : "";
+  $("recent-count").innerHTML = count(recent.length, "result");
+  $("upcoming-count").innerHTML = count(upcoming.length, "game");
   $("recent").innerHTML = recent.length ? recent.map(([g, s]) => gameRow(g, s, "result")).join("")
-    : `<li class="empty">No results in the last 10 days.</li>`;
+    : `<li class="empty">No results yet this season.</li>`;
   $("upcoming").innerHTML = upcoming.length ? upcoming.map(([g, s]) => gameRow(g, s, "next")).join("")
-    : `<li class="empty">Nothing scheduled in the next 10 days.</li>`;
+    : `<li class="empty">Nothing scheduled right now.</li>`;
+  $("recent").parentElement.scrollTop = 0;
+  $("upcoming").parentElement.scrollTop = 0;
 }
 
 function renderTeams() {
