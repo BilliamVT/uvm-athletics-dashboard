@@ -29,6 +29,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import hockey_east
+import rankings
 
 BASE = "https://uvmathletics.com"
 CONF_BASE = "https://americaeast.com"
@@ -110,6 +111,8 @@ class Game:
     result: str
     outcome: str              # "W", "L", "T" or ""
     place: str = ""           # team finish at a meet, e.g. "1st, 30 Pts"
+    opp_rank: str = ""        # opponent's national rank as UVM lists it, e.g. "7"
+    opp_seed: str = ""        # opponent's seed in a conference/NCAA tournament game
     links: dict[str, str] = field(default_factory=dict)  # "Recap"/"Results"/"Box Score" -> URL
 
 
@@ -121,6 +124,7 @@ class Sport:
     records: dict[str, str] = field(default_factory=dict)
     games: list[Game] = field(default_factory=list)
     standings: list[dict[str, str]] = field(default_factory=list)
+    rank: dict = field(default_factory=dict)  # UVM's national rank, see rankings.py
     standings_source: str = ""
     standings_url: str = ""
     schedule_url: str = ""
@@ -173,6 +177,13 @@ def parse_schedule_html(page: str) -> list[dict]:
     links to recaps and results PDFs, so pull those from the HTML blocks.
     """
     starts = [m.start() for m in re.finditer(r'<li[^>]*class="sidearm-schedule-game ', page)]
+    # Games are grouped under section headers. Most are promotions ("Senior Day"),
+    # but postseason games sit under "America East Tournament", "NCAA Tournament",
+    # etc. There a "#3" next to the opponent is a tournament seed, not a national rank.
+    postseason_from = min(
+        (m.start() for m in re.finditer(r'<div class="sidearm-schedule-tournament"[^>]*>(.*?)</div>', page, re.S)
+         if re.search(r'tournament|championship|playoff', _text(m.group(1)), re.I)),
+        default=len(page))
     games = []
     for a, b in zip(starts, starts[1:] + [len(page)]):
         block = page[a:b]
@@ -188,8 +199,13 @@ def parse_schedule_html(page: str) -> list[dict]:
                 if nice not in links and re.search(pat, label_text, re.I):
                     links[nice] = href if href.startswith("http") else BASE + href
                     break
+        # Ranked (or seeded) opponents are listed as "<span>#7</span> Minnesota Duluth".
+        num = re.search(r'<span[^>]*>\s*#(\d+)\s*</span>', name.group(1)) if name else None
+        postseason = a > postseason_from
         games.append({
-            "opponent": _text(name.group(1)) if name else "",
+            "opponent": re.sub(r'^#\d+\s*', '', _text(name.group(1))) if name else "",
+            "opp_rank": num.group(1) if num and not postseason else "",
+            "opp_seed": num.group(1) if num and postseason else "",
             "date_label": _text(date_m.group(1)) if date_m else "",
             "place": place,
             "links": links,
@@ -209,6 +225,8 @@ def merge_html_extras(sport: Sport, extras: list[dict]) -> None:
             continue
         game.place = extra["place"]
         game.links = extra["links"]
+        game.opp_rank = extra["opp_rank"]
+        game.opp_seed = extra["opp_seed"]
         # Meets list a placeholder "W 0-0" score; replace it with the placement.
         if game.place and (not game.result or re.fullmatch(r'[WLT] 0-0', game.result)):
             game.result = game.place
@@ -395,6 +413,10 @@ def collect(refresh: bool) -> dict:
                     sport.standings_url = hockey_east.source_url(slug)
             except Exception as exc:
                 print(f"    standings failed: {exc}", file=sys.stderr)
+            try:
+                sport.rank = rankings.rank_for(slug, lambda u: fetch(u, refresh=refresh)) or {}
+            except Exception as exc:
+                print(f"    rankings failed: {exc}", file=sys.stderr)
             sports.append(sport)
         except Exception as exc:
             print(f"    failed: {exc}", file=sys.stderr)

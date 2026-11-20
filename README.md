@@ -15,6 +15,7 @@ python3 hockey_east.py               # print Hockey East standings on their own
 |---|---|
 | `uvm_dashboard.py` | Main scraper and builder. Schedules/scores from UVM's Sidearm text export, meet placements and recap/results/box-score links from the schedule pages, news from the RSS feed, America East standings. |
 | `hockey_east.py` | Separate scraper for men's and women's Hockey East standings (hockeyeastonline.com). |
+| `rankings.py` | UVM's national rank per sport from the polls on ncaa.com ("#12", "RV" for receiving votes, or unranked). No women's hockey poll there. Opponents' ranks (gold "#9") and tournament seeds ("(2)") come from UVM's own schedule pages. |
 | `dashboard_template.html` | Page layout, styling and the JavaScript that renders the data. Edit this to change the look. |
 | `dashboard.html` | Generated output — open in a browser. |
 | `data.json` | Generated raw data, handy for debugging or other uses. |
@@ -46,6 +47,7 @@ in each browser, so a phone and a laptop each keep their own.
 - `uvmathletics.com/rss.aspx`
 - `americaeast.com/standings.aspx?path=<sport>`
 - `hockeyeastonline.com/{men,women}/standings/index.php`
+- `ncaa.com/rankings/<sport>/d1` (USCHO.com, AP, United Soccer Coaches, and other polls)
 
 Scores are shown as the site lists them (winner's score first). Gold tags are team finishes
 at meets (cross country, track, swimming invitationals, skiing). Scraping can break if these

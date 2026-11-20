@@ -107,6 +107,9 @@ h2 .count { text-transform: none; letter-spacing: 0; font-weight: 400; margin-le
 .P { color: var(--place); background: var(--place-bg); }
 .N { color: var(--muted); background: var(--surface-2); font-weight: 500; }
 a.taglink { text-decoration: none; }
+.rk { font-size: .78em; font-weight: 700; color: var(--place); font-variant-numeric: tabular-nums; }
+.rk.uvm { background: var(--place-bg); padding: 1px 6px; border-radius: 5px; margin-left: 2px; vertical-align: 1px; }
+.seed { font-size: .78em; color: var(--muted); font-variant-numeric: tabular-nums; }
 a.taglink:hover .tag { outline: 1px solid currentColor; }
 .time { font-size: 13px; color: var(--muted); white-space: nowrap; text-align: right; }
 .empty { padding: 16px 14px; color: var(--muted); font-size: 14px; }
@@ -159,7 +162,21 @@ a.ext { color: var(--accent); font-size: 13px; }
 .cust-list li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--border); background: var(--surface); }
 .cust-list li:first-child { border-top: 0; border-radius: 10px 10px 0 0; }
 .cust-list li:last-child { border-radius: 0 0 10px 10px; }
-.grip { color: var(--muted); cursor: grab; letter-spacing: -2px; }
+/* Big, touch-friendly drag handle; touch-action: none stops the page scrolling instead. */
+.grip { color: var(--muted); cursor: grab; letter-spacing: -2px; touch-action: none; user-select: none; -webkit-user-select: none;
+  display: inline-flex; align-items: center; justify-content: center; min-width: 32px; min-height: 40px; margin: -6px 0 -6px -6px; font-size: 18px; }
+@media (max-width: 480px) {
+  .cust-list li { gap: 4px; padding: 6px 8px; }
+  .cname { font-size: 14px; line-height: 1.25; }
+  .mv { width: 28px; height: 28px; }
+  .vis { min-width: 44px; height: 28px; }
+}
+.cust-list li.dragging { background: var(--surface-2); box-shadow: 0 6px 18px rgba(0,0,0,.25); position: relative; z-index: 1; }
+.cust-list li.dragging .grip { cursor: grabbing; color: var(--accent); }
+.sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; margin-bottom: 8px; }
+.sec-head h2 { margin: 0; }
+.sortbtn { font: inherit; font-size: 12px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); cursor: pointer; white-space: nowrap; }
+.sortbtn:hover { color: var(--text); border-color: var(--accent); }
 .cname { flex: 1; min-width: 0; }
 .cstat { font-size: 12px; color: var(--muted); }
 .mv { font: inherit; width: 30px; height: 30px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 6px; cursor: pointer; }
@@ -185,11 +202,14 @@ footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
   <div>
     <div class="two">
       <section>
-        <h2>Season results <span id="recent-count"></span></h2>
+        <div class="sec-head">
+          <h2>Season results <span id="recent-count"></span></h2>
+          <button class="sortbtn" id="sort-results" type="button"></button>
+        </div>
         <div class="panel"><ul class="games" id="recent"></ul></div>
       </section>
       <section>
-        <h2>Coming up <span id="upcoming-count"></span></h2>
+        <div class="sec-head"><h2>Coming up <span id="upcoming-count"></span></h2></div>
         <div class="panel"><ul class="games" id="upcoming"></ul></div>
       </section>
     </div>
@@ -251,6 +271,12 @@ const fmtWk = (iso) => {
 };
 const short = (name) => name.replace("Women's ", "W ").replace("Men's ", "M ").replace(" and Diving", "").replace("Track & Field", "Track");
 const prefix = (g) => g.home_away === "Away" ? "at " : g.home_away === "Neutral" ? "vs " : "vs ";
+// Opponent label with its national rank ("#9 UConn") or tournament seed ("(2) Clemson").
+const oppName = (g) => (g.opp_rank ? `<span class="rk" title="Nationally ranked #${g.opp_rank}">#${g.opp_rank}</span> `
+  : g.opp_seed ? `<span class="seed" title="Tournament seed ${g.opp_seed}">(${g.opp_seed})</span> ` : "") + esc(g.opponent);
+// UVM's own national rank, shown only while the team is in season.
+const uvmRank = (s) => s.inSeason && s.rank && s.rank.rank
+  ? `<span class="rk uvm" title="${esc(s.rank.rank === "RV" ? "Receiving votes" : "Ranked #" + s.rank.rank)} in the ${esc(s.rank.poll)} poll, ${esc(s.rank.as_of)}">${s.rank.rank === "RV" ? "RV" : "#" + esc(s.rank.rank)}</span>` : "";
 
 const sports = DATA.sports.filter(s => !s.error && s.games.length);
 const hasReport = (g) => g.result || g.links.Recap || g.links.Results;
@@ -272,7 +298,7 @@ for (const s of sports) {
 }
 
 // ---- Favorites and custom order (saved in this browser) ----
-const DEFAULT_PREFS = () => ({ order: [], favs: [], hidden: [], showOff: true });
+const DEFAULT_PREFS = () => ({ order: [], favs: [], hidden: [], showOff: true, resultsOrder: "newest" });
 let prefs = DEFAULT_PREFS();
 try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem("uvm-prefs") || "{}")); } catch (e) {}
 const savePrefs = () => { try { localStorage.setItem("uvm-prefs", JSON.stringify(prefs)); } catch (e) {} };
@@ -340,8 +366,8 @@ const visible = () => filter === "all" ? shown()
 function renderCustomize() {
   const list = userOrder();
   $("cust-off").checked = prefs.showOff;
-  $("cust-list").innerHTML = list.map((s, i) => `<li draggable="true" data-slug="${s.slug}" class="${isHidden(s) ? "hidden-team" : ""}">
-      <span class="grip" aria-hidden="true">⋮⋮</span>
+  $("cust-list").innerHTML = list.map((s, i) => `<li data-slug="${s.slug}" class="${isHidden(s) ? "hidden-team" : ""}">
+      <span class="grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
       <button class="star${isFav(s) ? " on" : ""}" data-act="fav" aria-pressed="${isFav(s)}" aria-label="Favorite ${esc(s.name)}">${isFav(s) ? "★" : "☆"}</button>
       <span class="cname">${esc(s.name)}${isHidden(s) ? ` <span class="cstat">hidden</span>` : s.inSeason ? "" : ` <span class="cstat">${s.status}</span>`}</span>
       <button class="vis" data-act="hide" aria-pressed="${isHidden(s)}" aria-label="${isHidden(s) ? "Show" : "Hide"} ${esc(s.name)}">${isHidden(s) ? "Show" : "Hide"}</button>
@@ -358,14 +384,44 @@ $("cust-list").addEventListener("click", (e) => {
   if (b.dataset.act === "up") moveSport(slug, i - 1);
   if (b.dataset.act === "down") moveSport(slug, i + 1);
 });
-let dragSlug = null;
-$("cust-list").addEventListener("dragstart", (e) => { dragSlug = e.target.closest("li")?.dataset.slug; e.dataTransfer.effectAllowed = "move"; });
-$("cust-list").addEventListener("dragover", (e) => { if (dragSlug) { e.preventDefault(); } });
-$("cust-list").addEventListener("drop", (e) => {
+// Drag to reorder with the ⋮⋮ handle. Uses pointer events, which work for mouse and
+// touch alike (the browser's built-in drag-and-drop doesn't work on most phones).
+let drag = null;
+$("cust-list").addEventListener("pointerdown", (e) => {
+  const grip = e.target.closest(".grip"); if (!grip) return;
   e.preventDefault();
-  const li = e.target.closest("li"); if (!li || !dragSlug) return;
-  moveSport(dragSlug, userOrder().findIndex(s => s.slug === li.dataset.slug));
-  dragSlug = null;
+  drag = { li: grip.closest("li") };
+  drag.li.classList.add("dragging");
+  window.addEventListener("pointermove", onDragMove);
+  window.addEventListener("pointerup", onDragEnd);
+  window.addEventListener("pointercancel", onDragEnd);
+});
+function onDragMove(e) {
+  if (!drag) return;
+  e.preventDefault();
+  // Move the row past whichever row the pointer is over.
+  const over = document.elementFromPoint(e.clientX, e.clientY)?.closest("#cust-list li");
+  if (over && over !== drag.li) {
+    const r = over.getBoundingClientRect();
+    over.parentNode.insertBefore(drag.li, e.clientY > r.top + r.height / 2 ? over.nextSibling : over);
+  }
+  // Scroll the panel when dragging near its top or bottom edge.
+  const dlg = $("cust"), d = dlg.getBoundingClientRect();
+  if (e.clientY < d.top + 70) dlg.scrollTop -= 12;
+  else if (e.clientY > d.bottom - 70) dlg.scrollTop += 12;
+}
+function onDragEnd() {
+  window.removeEventListener("pointermove", onDragMove);
+  window.removeEventListener("pointerup", onDragEnd);
+  window.removeEventListener("pointercancel", onDragEnd);
+  if (!drag) return;
+  prefs.order = [...$("cust-list").children].map(li => li.dataset.slug);
+  drag = null;
+  savePrefs(); render(); renderCustomize();
+}
+$("sort-results").addEventListener("click", () => {
+  prefs.resultsOrder = prefs.resultsOrder === "oldest" ? "newest" : "oldest";
+  savePrefs(); renderGames();
 });
 $("cust-reset").addEventListener("click", () => { prefs = DEFAULT_PREFS(); filter = "all"; savePrefs(); render(); renderCustomize(); });
 $("cust-off").addEventListener("change", (e) => { prefs.showOff = e.target.checked; savePrefs(); render(); renderCustomize(); });
@@ -384,16 +440,19 @@ function linkList(g) {
 function gameRow(g, s, kind) {
   const right = kind === "result" ? resultTag(g) : `<span class="time">${esc(g.time)}</span>`;
   return `<li><div class="d"><b>${fmtDay(g.date)}</b>${fmtWk(g.date)}</div>
-    <div class="opp"><div class="sp">${esc(short(s.name))}</div><div class="nm" title="${esc(g.opponent)} · ${esc(g.location)}">${prefix(g)}${esc(g.opponent)}</div></div>
+    <div class="opp"><div class="sp">${esc(short(s.name))}</div><div class="nm" title="${esc(g.opponent)} · ${esc(g.location)}">${prefix(g)}${oppName(g)}</div></div>
     ${right}</li>`;
 }
 
 function renderGames() {
   const vs = visible();
-  // Whole season so far (newest first) and everything still scheduled (soonest first);
-  // the panels scroll, so nothing is cut off.
+  // Whole season so far (newest or oldest first, the viewer's choice) and everything
+  // still scheduled (soonest first); the panels scroll, so nothing is cut off.
+  const oldestFirst = prefs.resultsOrder === "oldest";
   const recent = vs.flatMap(s => s.played.map(g => [g, s]))
-    .sort((a, b) => b[0].date.localeCompare(a[0].date));
+    .sort((a, b) => oldestFirst ? a[0].date.localeCompare(b[0].date) : b[0].date.localeCompare(a[0].date));
+  $("sort-results").textContent = oldestFirst ? "Oldest first ↑" : "Newest first ↓";
+  $("sort-results").setAttribute("aria-label", `Sort results: ${oldestFirst ? "oldest" : "newest"} first. Click to switch.`);
   const upcoming = vs.flatMap(s => s.next.map(g => [g, s]))
     .sort((a, b) => a[0].date.localeCompare(b[0].date));
   const count = (n, word) => n ? `<span class="count">${n} ${word}${n === 1 ? "" : "s"}</span>` : "";
@@ -423,12 +482,12 @@ function renderTeams() {
       ? (s.firsts ? `${s.firsts} team win${s.firsts > 1 ? "s" : ""} · ${s.season}` : s.season)
       : [r.Conference && `${r.Conference} conf`, r.Streak && r.Streak !== "-" && r.Streak].filter(Boolean).join(" · ") || s.season;
     return `<button class="panel team${s.inSeason ? "" : " offseason"}" data-slug="${s.slug}">
-      <div class="name">${isFav(s) ? `<span class="favmark" aria-label="Favorite">★</span> ` : ""}${esc(s.name)}</div>
+      <div class="name">${isFav(s) ? `<span class="favmark" aria-label="Favorite">★</span> ` : ""}${esc(s.name)} ${uvmRank(s)}</div>
       <div class="rec">${esc(rec)}</div>
       <div class="meta">${esc(meta)}${s.inSeason ? "" : ` · ${s.status}`}</div>
       ${form ? `<div class="form">${form}</div>` : ""}
-      ${last ? `<div class="line"><span class="tag ${tagCls(last)}">${esc(last.result || "Recap")}</span><span>${s.isMeet ? "" : prefix(last)}${esc(last.opponent)}</span></div>` : ""}
-      ${next ? `<div class="line"><span class="meta">Next ${fmtDay(next.date)}</span><span>${prefix(next)}${esc(next.opponent)}</span></div>` : ""}
+      ${last ? `<div class="line"><span class="tag ${tagCls(last)}">${esc(last.result || "Recap")}</span><span>${s.isMeet ? "" : prefix(last)}${oppName(last)}</span></div>` : ""}
+      ${next ? `<div class="line"><span class="meta">Next ${fmtDay(next.date)}</span><span>${prefix(next)}${oppName(next)}</span></div>` : ""}
     </button>`;
   }).join("");
 }
@@ -440,7 +499,9 @@ function openSport(slug) {
   const s = sports.find(x => x.slug === slug);
   $("dlg-title").innerHTML = `${esc(s.name)} <button class="star${isFav(s) ? " on" : ""}" id="dlg-fav" aria-pressed="${isFav(s)}" aria-label="Favorite ${esc(s.name)}">${isFav(s) ? "★" : "☆"}</button>`;
   $("dlg-fav").onclick = () => { toggleFav(slug); openSport(slug); };
-  $("dlg-sub").innerHTML = `${esc(s.season)} season · <a class="ext" href="${esc(s.schedule_url)}" target="_blank" rel="noopener">Official schedule ↗</a>`;
+  const r = s.rank || {};
+  const rankLine = r.poll ? ` · ${r.rank === "RV" ? "Receiving votes" : r.rank ? "Ranked #" + esc(r.rank) : "Unranked"} in the <a class="ext" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.poll)} poll</a> (${esc(r.as_of)})` : "";
+  $("dlg-sub").innerHTML = `${esc(s.season)} season${rankLine} · <a class="ext" href="${esc(s.schedule_url)}" target="_blank" rel="noopener">Official schedule ↗</a>`;
   const recs = Object.entries(s.records).filter(([, v]) => v && v !== "-")
     .map(([k, v]) => `<div>${esc(k)}<b>${esc(v)}</b></div>`).join("");
   let html = recs ? `<div class="recs">${recs}</div>` : "";
@@ -454,7 +515,7 @@ function openSport(slug) {
   html += `<h2>${s.isMeet ? "Meets &amp; results" : "Schedule &amp; results"}</h2><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Time</th><th></th><th>${s.isMeet ? "Meet" : "Opponent"}</th><th>Result</th><th>Links</th><th>Location</th></tr></thead><tbody>` +
     s.games.map(g => `<tr class="${g.date && g.date >= today && !g.result ? "future" : ""}">
       <td>${esc(g.date_label)}</td><td>${esc(g.time)}</td><td>${esc(g.home_away)}</td>
-      <td>${esc(g.opponent)}${g.tournament ? ` <span style="color:var(--muted)">(${esc(g.tournament)})</span>` : ""}</td>
+      <td>${oppName(g)}${g.tournament ? ` <span style="color:var(--muted)">(${esc(g.tournament)})</span>` : ""}</td>
       <td>${g.result ? `<span class="tag ${tagCls(g)}">${esc(g.result)}</span>` : ""}</td>
       <td>${linkList(g)}</td>
       <td>${esc(g.location)}</td></tr>`).join("") +
