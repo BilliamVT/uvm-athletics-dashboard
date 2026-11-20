@@ -478,13 +478,19 @@ function gameRow(g, s, kind) {
 }
 
 // Calendar subscription links (calendars/<slug>.ics, built daily by calendars.py).
-// webcal:// opens the "Subscribe" prompt on iPhone/Mac; the copied https link works
-// in Google Calendar ("Other calendars" > "From URL") and Outlook.
+// - Apple Calendar: webcal:// opens the "Subscribe" prompt on iPhone/Mac.
+// - Google Calendar: its "?cid=" link opens an "Add this calendar?" prompt with the
+//   address filled in (works best on a computer; Google's phone app can't add by URL).
+// - Copy link: the plain https address, for Outlook or adding by hand.
 const canSubscribe = location.protocol.startsWith("http");
 function calLinks(slug, what) {
   if (!canSubscribe) return "";
   const url = new URL(`calendars/${slug}.ics`, location.href).href;
-  return `<div class="calrow">📅 <a class="ext" href="${esc(url.replace(/^https?:/, "webcal:"))}">Subscribe to ${what} in your calendar</a>
+  const webcal = url.replace(/^https?:/, "webcal:");
+  const google = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`;
+  return `<div class="calrow">📅 Subscribe to ${what}:
+    <a class="ext" href="${esc(google)}" target="_blank" rel="noopener">Google Calendar</a>
+    · <a class="ext" href="${esc(webcal)}">Apple Calendar</a>
     · <button class="linkbtn" type="button" data-copy="${esc(url)}">Copy link</button></div>`;
 }
 document.addEventListener("click", async (e) => {
