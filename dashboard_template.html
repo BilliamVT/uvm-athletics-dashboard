@@ -103,6 +103,23 @@ h2 .count { text-transform: none; letter-spacing: 0; font-weight: 400; margin-le
 @media (max-width: 640px) { .two { grid-template-columns: 1fr; } }
 
 .games { list-style: none; margin: 0; padding: 4px 0; }
+.games li.is-today { box-shadow: inset 3px 0 0 var(--gold); }
+.time { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.tvname { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.today { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.tcard { padding: 12px 14px; border-left: 3px solid var(--gold); display: flex; flex-direction: column; gap: 4px; }
+.tcard .sp { font-size: 12px; color: var(--muted); }
+.tcard .tnm { font-weight: 600; font-size: 16px; }
+.tcard .tmeta { font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tcard .tmeta span { color: var(--muted); }
+.tcard .tloc { font-size: 12px; color: var(--muted); }
+.tlinks { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.tlinks:empty { display: none; }
+.tbtn { font-size: 13px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--text); text-decoration: none; }
+.tbtn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.calrow { margin-top: 6px; font-size: 13px; color: var(--muted); }
+#allcal .calrow { margin: 0 0 12px; }
+.linkbtn { font: inherit; font-size: 13px; background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; }
 .games li { display: grid; grid-template-columns: 54px 1fr auto; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--border); }
 .games li:first-child { border-top: 0; }
 .d { font-size: 12px; color: var(--muted); line-height: 1.2; }
@@ -211,6 +228,10 @@ footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
 <div class="wrap"><div class="chips" id="chips" role="group" aria-label="Filter by sport"></div></div>
 <main class="wrap">
   <div>
+    <section id="today-sec" hidden>
+      <div class="sec-head"><h2>Today <span class="count" id="today-count"></span></h2></div>
+      <div class="today" id="today"></div>
+    </section>
     <div class="two">
       <section>
         <div class="sec-head"><h2>Coming up <span id="upcoming-count"></span></h2></div>
@@ -236,7 +257,7 @@ footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
     </section>
   </aside>
 </main>
-<div class="wrap"><footer>Data scraped from uvmathletics.com, americaeast.com and hockeyeastonline.com for personal use. Gold tags are team finishes at meets. Scores are shown as the site lists them: winner's score first. Rebuilt daily at 5 AM Eastern; tap the "Updated" time to reload.</footer></div>
+<div class="wrap"><div id="allcal"></div><footer>Data scraped from uvmathletics.com, americaeast.com and hockeyeastonline.com for personal use. Gold tags are team finishes at meets. Scores are shown as the site lists them: winner's score first. Rebuilt daily at 5 AM Eastern; tap the "Updated" time to reload.</footer></div>
 
 <dialog id="cust" aria-labelledby="cust-title">
   <div class="dlg-head">
@@ -445,14 +466,56 @@ function resultTag(g) {
 }
 
 function linkList(g) {
-  return Object.entries(g.links).map(([k, u]) => `<a class="ext" href="${esc(u)}" target="_blank" rel="noopener">${esc(k)}</a>`).join(" · ");
+  return (g.tv ? [`<span class="tvname">${esc(g.tv)}</span>`] : []).concat(Object.entries(g.links).map(([k, u]) => `<a class="ext" href="${esc(u)}" target="_blank" rel="noopener">${esc(k)}</a>`)).join(" · ");
 }
 
 function gameRow(g, s, kind) {
-  const right = kind === "result" ? resultTag(g) : `<span class="time">${esc(g.time)}</span>`;
-  return `<li><div class="d"><b>${fmtDay(g.date)}</b>${fmtWk(g.date)}</div>
+  const right = kind === "result" ? resultTag(g)
+    : `<span class="time">${esc(g.time)}${g.tv ? `<span class="tvname">${esc(g.tv)}</span>` : ""}</span>`;
+  return `<li class="${g.date === today ? "is-today" : ""}"><div class="d"><b>${fmtDay(g.date)}</b>${fmtWk(g.date)}</div>
     <div class="opp"><div class="sp">${esc(short(s.name))}</div><div class="nm" title="${esc(g.opponent)} · ${esc(g.location)}">${prefix(g)}${oppName(g)}</div></div>
     ${right}</li>`;
+}
+
+// Calendar subscription links (calendars/<slug>.ics, built daily by calendars.py).
+// webcal:// opens the "Subscribe" prompt on iPhone/Mac; the copied https link works
+// in Google Calendar ("Other calendars" > "From URL") and Outlook.
+const canSubscribe = location.protocol.startsWith("http");
+function calLinks(slug, what) {
+  if (!canSubscribe) return "";
+  const url = new URL(`calendars/${slug}.ics`, location.href).href;
+  return `<div class="calrow">📅 <a class="ext" href="${esc(url.replace(/^https?:/, "webcal:"))}">Subscribe to ${what} in your calendar</a>
+    · <button class="linkbtn" type="button" data-copy="${esc(url)}">Copy link</button></div>`;
+}
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-copy]"); if (!b) return;
+  try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied!"; }
+  catch (err) { window.prompt("Copy this calendar link:", b.dataset.copy); }
+  setTimeout(() => { b.textContent = "Copy link"; }, 1800);
+});
+
+// Minutes after midnight for sorting ("7:30 PM" -> 1170); TBA/TBD sort last.
+function timeKey(t) {
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*([AP])M$/i.exec(t || "");
+  return m ? (+m[1] % 12 + (m[3].toUpperCase() === "P" ? 12 : 0)) * 60 + +(m[2] || 0) : 9999;
+}
+
+// Game-day cards for today's games across the teams on screen.
+function renderToday() {
+  const games = visible().flatMap(s => s.games.filter(g => g.date === today).map(g => [g, s]))
+    .sort((a, b) => timeKey(a[0].time) - timeKey(b[0].time));
+  $("today-sec").hidden = !games.length;
+  if (!games.length) return;
+  $("today-count").textContent = `${games.length} game${games.length === 1 ? "" : "s"}`;
+  const btn = (g, label) => g.links[label]
+    ? `<a class="tbtn${label === "Watch" ? " primary" : ""}" href="${esc(g.links[label])}" target="_blank" rel="noopener">${label === "Watch" ? "▶ Watch" : esc(label)}</a>` : "";
+  $("today").innerHTML = games.map(([g, s]) => `<div class="panel tcard${g.result ? " final" : ""}">
+      <div class="sp">${esc(short(s.name))}${g.tournament ? ` · ${esc(g.tournament)}` : ""}</div>
+      <div class="tnm">${s.isMeet ? "" : prefix(g)}${oppName(g)}</div>
+      <div class="tmeta">${g.result ? resultTag(g) : `<b>${esc(g.time)}</b>`}${g.tv ? ` <span>· ${esc(g.tv)}</span>` : ""}${g.radio ? ` <span>· ${esc(g.radio)}</span>` : ""}</div>
+      <div class="tloc">${esc(g.location)}</div>
+      <div class="tlinks">${g.result ? btn(g, "Box Score") + btn(g, "Recap") : btn(g, "Watch") + btn(g, "Live Stats")}</div>
+    </div>`).join("");
 }
 
 function renderGames() {
@@ -498,7 +561,7 @@ function renderTeams() {
       <div class="meta">${esc(meta)}${s.inSeason ? "" : ` · ${s.status}`}</div>
       ${form ? `<div class="form">${form}</div>` : ""}
       ${last ? `<div class="line"><span class="tag ${tagCls(last)}">${esc(last.result || "Recap")}</span><span>${s.isMeet ? "" : prefix(last)}${oppName(last)}</span></div>` : ""}
-      ${next ? `<div class="line"><span class="meta">Next ${fmtDay(next.date)}</span><span>${prefix(next)}${oppName(next)}</span></div>` : ""}
+      ${next ? `<div class="line"><span class="meta">Next ${fmtDay(next.date)}</span><span>${prefix(next)}${oppName(next)}${next.tv ? ` <span class="meta">· ${esc(next.tv)}</span>` : ""}</span></div>` : ""}
     </button>`;
   }).join("");
 }
@@ -512,7 +575,7 @@ function openSport(slug) {
   $("dlg-fav").onclick = () => { toggleFav(slug); openSport(slug); };
   const r = s.rank || {};
   const rankLine = r.poll ? ` · ${r.rank === "RV" ? "Receiving votes" : r.rank ? "Ranked #" + esc(r.rank) : "Unranked"} in the <a class="ext" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.poll)} poll</a> (${esc(r.as_of)})` : "";
-  $("dlg-sub").innerHTML = `${esc(s.season)} season${rankLine} · <a class="ext" href="${esc(s.schedule_url)}" target="_blank" rel="noopener">Official schedule ↗</a>`;
+  $("dlg-sub").innerHTML = `${esc(s.season)} season${rankLine} · <a class="ext" href="${esc(s.schedule_url)}" target="_blank" rel="noopener">Official schedule ↗</a>${calLinks(s.slug, "this team's games")}`;
   const recs = Object.entries(s.records).filter(([, v]) => v && v !== "-")
     .map(([k, v]) => `<div>${esc(k)}<b>${esc(v)}</b></div>`).join("");
   let html = recs ? `<div class="recs">${recs}</div>` : "";
@@ -523,7 +586,7 @@ function openSport(slug) {
       s.standings.map(r => `<tr class="${/^vermont$/i.test(r.School) ? "us" : ""}">${cols.map(c => `<td class="${textCol(c) ? "" : "num"}">${esc(r[c])}</td>`).join("")}</tr>`).join("") +
       `</tbody></table></div>`;
   }
-  html += `<h2>${s.isMeet ? "Meets &amp; results" : "Schedule &amp; results"}</h2><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Time</th><th></th><th>${s.isMeet ? "Meet" : "Opponent"}</th><th>Result</th><th>Links</th><th>Location</th></tr></thead><tbody>` +
+  html += `<h2>${s.isMeet ? "Meets &amp; results" : "Schedule &amp; results"}</h2><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Time</th><th></th><th>${s.isMeet ? "Meet" : "Opponent"}</th><th>Result</th><th>Watch &amp; links</th><th>Location</th></tr></thead><tbody>` +
     s.games.map(g => `<tr class="${g.date && g.date >= today && !g.result ? "future" : ""}">
       <td>${esc(g.date_label)}</td><td>${esc(g.time)}</td><td>${esc(g.home_away)}</td>
       <td>${oppName(g)}${g.tournament ? ` <span style="color:var(--muted)">(${esc(g.tournament)})</span>` : ""}</td>
@@ -546,8 +609,9 @@ function renderNews() {
     </a></li>`).join("") : `<li class="empty">No recent stories${name ? " for " + esc(name) : ""}.</li>`;
 }
 
-function render() { fixFilter(); renderChips(); renderGames(); renderTeams(); renderNews(); }
+function render() { fixFilter(); renderChips(); renderToday(); renderGames(); renderTeams(); renderNews(); }
 render();
+$("allcal").innerHTML = calLinks("all", "every UVM team's games");
 
 // ---- App behavior ----
 $("updated").addEventListener("click", () => location.reload());

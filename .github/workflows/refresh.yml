@@ -78,6 +78,8 @@ jobs:
           # Home-screen app files: manifest, offline service worker, icons
           cp manifest.webmanifest sw.js _site/
           cp -r icons _site/icons
+          # Subscribable team calendars (.ics)
+          cp -r calendars _site/calendars
 
       - uses: actions/upload-pages-artifact@v3
         with:

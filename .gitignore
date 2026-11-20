@@ -1,6 +1,7 @@
 # Generated output (GitHub Actions rebuilds these daily)
 dashboard.html
 data.json
+calendars/
 _site/
 .cache/
 

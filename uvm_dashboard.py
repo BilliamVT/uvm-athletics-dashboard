@@ -28,6 +28,7 @@ from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
+import calendars
 import hockey_east
 import rankings
 
@@ -113,6 +114,8 @@ class Game:
     place: str = ""           # team finish at a meet, e.g. "1st, 30 Pts"
     opp_rank: str = ""        # opponent's national rank as UVM lists it, e.g. "7"
     opp_seed: str = ""        # opponent's seed in a conference/NCAA tournament game
+    tv: str = ""              # where to watch, e.g. "ESPN+" or "ESPN+/NESN"
+    radio: str = ""           # radio station, e.g. "WVMT"
     links: dict[str, str] = field(default_factory=dict)  # "Recap"/"Results"/"Box Score" -> URL
 
 
@@ -163,6 +166,8 @@ def _text(fragment: str) -> str:
 
 
 LINK_LABELS = [  # (pattern on link text/url, label shown on the dashboard)
+    (r'^watch|live ?stream|video stream', "Watch"),
+    (r'live ?stats', "Live Stats"),
     (r'box ?score', "Box Score"),
     (r'result', "Results"),
     (r'recap', "Recap"),
@@ -195,17 +200,24 @@ def parse_schedule_html(page: str) -> list[dict]:
         links: dict[str, str] = {}
         for href, label in re.findall(r'<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', block, re.S):
             label_text = _text(label)
+            url = href if href.startswith("http") else BASE + href
+            if url in links.values():  # same link under a second label ("Live Stats" + "Stats")
+                continue
             for pat, nice in LINK_LABELS:
                 if nice not in links and re.search(pat, label_text, re.I):
-                    links[nice] = href if href.startswith("http") else BASE + href
+                    links[nice] = url
                     break
         # Ranked (or seeded) opponents are listed as "<span>#7</span> Minnesota Duluth".
         num = re.search(r'<span[^>]*>\s*#(\d+)\s*</span>', name.group(1)) if name else None
         postseason = a > postseason_from
+        tv = re.search(r'sidearm-schedule-game-coverage-tv-content[^>]*>(.*?)</span>', block, re.S)
+        radio = re.search(r'sidearm-schedule-game-coverage-radio-content[^>]*>(.*?)</span>', block, re.S)
         games.append({
             "opponent": re.sub(r'^#\d+\s*', '', _text(name.group(1))) if name else "",
             "opp_rank": num.group(1) if num and not postseason else "",
             "opp_seed": num.group(1) if num and postseason else "",
+            "tv": _text(tv.group(1)) if tv else "",
+            "radio": _text(radio.group(1)) if radio else "",
             "date_label": _text(date_m.group(1)) if date_m else "",
             "place": place,
             "links": links,
@@ -227,6 +239,8 @@ def merge_html_extras(sport: Sport, extras: list[dict]) -> None:
         game.links = extra["links"]
         game.opp_rank = extra["opp_rank"]
         game.opp_seed = extra["opp_seed"]
+        game.tv = extra["tv"]
+        game.radio = extra["radio"]
         # Meets list a placeholder "W 0-0" score; replace it with the placement.
         if game.place and (not game.result or re.fullmatch(r'[WLT] 0-0', game.result)):
             game.result = game.place
@@ -455,9 +469,10 @@ def main() -> None:
     data = collect(args.refresh)
     (HERE / "data.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
     OUT_FILE.write_text(render(data), encoding="utf-8")
+    n_cal = calendars.write_calendars(data["sports"], HERE / "calendars")
     games = sum(len(s["games"]) for s in data["sports"])
     print(f"Wrote {OUT_FILE.name}: {len(data['sports'])} sports, {games} games, "
-          f"{len(data['news'])} news items")
+          f"{len(data['news'])} news items, {n_cal} calendars")
     if args.open:
         webbrowser.open(OUT_FILE.as_uri())
 
