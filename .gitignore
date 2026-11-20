@@ -1,0 +1,12 @@
+# Generated output (GitHub Actions rebuilds these daily)
+dashboard.html
+data.json
+_site/
+.cache/
+
+# Python / IDE
+__pycache__/
+*.pyc
+.venv/
+.idea/
+.DS_Store

@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UVM Athletics Dashboard</title>
+<style>
+:root {
+  --green: #154734;
+  --gold: #f2c200;
+  --bg: #f4f5f2;
+  --surface: #ffffff;
+  --surface-2: #eef1ec;
+  --text: #17201b;
+  --muted: #5c6862;
+  --border: #dde2dc;
+  --win: #1d7a46;
+  --win-bg: #e1f2e7;
+  --loss: #b3261e;
+  --loss-bg: #fbe5e3;
+  --tie: #6b6b6b;
+  --tie-bg: #ececec;
+  --place: #7a5a00;
+  --place-bg: #fbf0c4;
+  --accent: var(--green);
+  --header-bg: var(--green);
+  --header-text: #ffffff;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1412;
+    --surface: #171e1a;
+    --surface-2: #1f2823;
+    --text: #e6ebe7;
+    --muted: #96a39c;
+    --border: #2a352f;
+    --win: #5fd08f;
+    --win-bg: #173525;
+    --loss: #ff8a80;
+    --loss-bg: #3a1c1a;
+    --tie: #b4b4b4;
+    --tie-bg: #2b2b2b;
+    --place: #f2d36b;
+    --place-bg: #3a3214;
+    --accent: #7fcf9f;
+    --header-bg: #0b2a1e;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1412; --surface: #171e1a; --surface-2: #1f2823; --text: #e6ebe7;
+  --muted: #96a39c; --border: #2a352f; --win: #5fd08f; --win-bg: #173525;
+  --loss: #ff8a80; --loss-bg: #3a1c1a; --tie: #b4b4b4; --tie-bg: #2b2b2b;
+  --place: #f2d36b; --place-bg: #3a3214; --accent: #7fcf9f; --header-bg: #0b2a1e; --shadow: none;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+header {
+  background: var(--header-bg); color: var(--header-text);
+  border-bottom: 4px solid var(--gold);
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+header .wrap { padding-top: 20px; padding-bottom: 16px; display: flex; flex-wrap: wrap; align-items: end; gap: 8px 24px; justify-content: space-between; }
+h1 { margin: 0; font-size: 26px; letter-spacing: -.01em; }
+h1 span { color: var(--gold); }
+.updated { font-size: 13px; opacity: .8; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 0 4px; }
+.chip {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.chip.off { color: var(--muted); }
+
+main.wrap { display: grid; gap: 20px; padding-top: 12px; padding-bottom: 40px;
+  grid-template-columns: minmax(0, 1fr) 340px; }
+@media (max-width: 900px) { main.wrap { grid-template-columns: minmax(0, 1fr); } }
+section { margin-bottom: 22px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 640px) { .two { grid-template-columns: 1fr; } }
+
+.games { list-style: none; margin: 0; padding: 4px 0; }
+.games li { display: grid; grid-template-columns: 54px 1fr auto; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--border); }
+.games li:first-child { border-top: 0; }
+.d { font-size: 12px; color: var(--muted); line-height: 1.2; }
+.d b { display: block; font-size: 14px; color: var(--text); }
+.opp { min-width: 0; }
+.opp .sp { font-size: 12px; color: var(--muted); }
+.opp .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.W { color: var(--win); background: var(--win-bg); }
+.L { color: var(--loss); background: var(--loss-bg); }
+.T { color: var(--tie); background: var(--tie-bg); }
+.P { color: var(--place); background: var(--place-bg); }
+.N { color: var(--muted); background: var(--surface-2); font-weight: 500; }
+a.taglink { text-decoration: none; }
+a.taglink:hover .tag { outline: 1px solid currentColor; }
+.time { font-size: 13px; color: var(--muted); white-space: nowrap; text-align: right; }
+.empty { padding: 16px 14px; color: var(--muted); font-size: 14px; }
+
+.teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.team { text-align: left; font: inherit; color: inherit; cursor: pointer; padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.team:hover { border-color: var(--accent); }
+.team .name { font-weight: 600; }
+.team .rec { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.team .meta { font-size: 13px; color: var(--muted); }
+.team .line { font-size: 13px; display: flex; gap: 6px; align-items: center; min-width: 0; }
+.team .line span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.team.offseason { opacity: .7; }
+.form { display: flex; gap: 3px; }
+.form i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.form i.W { background: var(--win); } .form i.L { background: var(--loss); } .form i.T { background: var(--tie); }
+
+.news { list-style: none; margin: 0; padding: 0; }
+.news li { border-top: 1px solid var(--border); }
+.news li:first-child { border-top: 0; }
+.news a { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 12px 14px; color: inherit; text-decoration: none; }
+.news a:hover .t { text-decoration: underline; }
+.news img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: var(--surface-2); }
+.news .t { font-weight: 600; font-size: 14px; line-height: 1.3; }
+.news .s { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+dialog { border: 0; border-radius: 14px; padding: 0; width: min(860px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+  background: var(--surface); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+.dlg-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding: 18px 20px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+.dlg-head h3 { margin: 0; font-size: 20px; }
+.dlg-body { padding: 16px 20px 22px; }
+.close { font: inherit; font-size: 20px; line-height: 1; border: 0; background: var(--surface-2); color: var(--text); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; }
+.recs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.recs div { background: var(--surface-2); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.recs b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+.tbl-wrap { overflow-x: auto; margin-bottom: 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.us td { background: var(--win-bg); font-weight: 600; }
+tr.future td { color: var(--muted); }
+a.ext { color: var(--accent); font-size: 13px; }
+.chip.customize { border-style: dashed; color: var(--muted); }
+.favmark { color: var(--gold); }
+.star { font: inherit; font-size: 18px; line-height: 1; border: 0; background: none; cursor: pointer; color: var(--muted); padding: 2px 4px; vertical-align: 2px; }
+.star.on { color: var(--gold); }
+.cust-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 10px; }
+.cust-list li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--border); background: var(--surface); }
+.cust-list li:first-child { border-top: 0; border-radius: 10px 10px 0 0; }
+.cust-list li:last-child { border-radius: 0 0 10px 10px; }
+.grip { color: var(--muted); cursor: grab; letter-spacing: -2px; }
+.cname { flex: 1; min-width: 0; }
+.cstat { font-size: 12px; color: var(--muted); }
+.mv { font: inherit; width: 30px; height: 30px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 6px; cursor: pointer; }
+.mv:disabled { opacity: .35; cursor: default; }
+footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>UVM <span>Catamounts</span></h1>
+    <div class="updated" id="updated"></div>
+  </div>
+</header>
+<div class="wrap"><div class="chips" id="chips" role="group" aria-label="Filter by sport"></div></div>
+<main class="wrap">
+  <div>
+    <div class="two">
+      <section>
+        <h2>Recent results</h2>
+        <div class="panel"><ul class="games" id="recent"></ul></div>
+      </section>
+      <section>
+        <h2>Coming up</h2>
+        <div class="panel"><ul class="games" id="upcoming"></ul></div>
+      </section>
+    </div>
+    <section>
+      <h2>Teams</h2>
+      <div class="teams" id="teams"></div>
+    </section>
+  </div>
+  <aside>
+    <section>
+      <h2>Latest news</h2>
+      <div class="panel"><ul class="news" id="news"></ul></div>
+    </section>
+  </aside>
+</main>
+<div class="wrap"><footer>Data scraped from uvmathletics.com, americaeast.com and hockeyeastonline.com for personal use. Gold tags are team finishes at meets. Scores are shown as the site lists them: winner's score first. Re-run <code>python3 uvm_dashboard.py</code> to refresh.</footer></div>
+
+<dialog id="cust" aria-labelledby="cust-title">
+  <div class="dlg-head">
+    <div><h3 id="cust-title">Customize teams</h3>
+      <div style="color:var(--muted);font-size:13px">Star your favorites and drag (or use the arrows) to set the order. Favorites show first, then teams in season; finished seasons drop to the end. Saved in this browser.</div></div>
+    <button class="close" aria-label="Close" onclick="document.getElementById('cust').close()">×</button>
+  </div>
+  <div class="dlg-body">
+    <ul class="cust-list" id="cust-list"></ul>
+    <button class="chip" id="cust-reset" style="margin-top:12px">Reset to default</button>
+  </div>
+</dialog>
+
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <div class="dlg-head">
+    <div><h3 id="dlg-title"></h3><div class="meta" id="dlg-sub" style="color:var(--muted);font-size:13px"></div></div>
+    <button class="close" aria-label="Close" onclick="document.getElementById('dlg').close()">×</button>
+  </div>
+  <div class="dlg-body" id="dlg-body"></div>
+</dialog>
+
+<script>
+const DATA = /*__DATA__*/null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// Use the viewer's date, not the build date, so a page built in the morning stays right all day.
+const now = new Date();
+const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+const DAY = 86400000;
+const toDate = (iso) => new Date(iso + "T12:00:00");
+const dayDiff = (iso) => Math.round((toDate(iso) - toDate(today)) / DAY);
+const fmtDay = (iso) => toDate(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const fmtWk = (iso) => {
+  const d = dayDiff(iso);
+  if (d === 0) return "Today";
+  if (d === 1) return "Tmrw";
+  if (d === -1) return "Yest";
+  return toDate(iso).toLocaleDateString(undefined, { weekday: "short" });
+};
+const short = (name) => name.replace("Women's ", "W ").replace("Men's ", "M ").replace(" and Diving", "").replace("Track & Field", "Track");
+const prefix = (g) => g.home_away === "Away" ? "at " : g.home_away === "Neutral" ? "vs " : "vs ";
+
+const sports = DATA.sports.filter(s => !s.error && s.games.length);
+const hasReport = (g) => g.result || g.links.Recap || g.links.Results;
+const bestLink = (g) => g.links["Box Score"] || g.links.Results || g.links.Recap || "";
+const tagCls = (g) => g.outcome || (g.place ? "P" : "N");
+for (const s of sports) {
+  const dated = s.games.filter(g => g.date);
+  s.done = dated.filter(g => g.date < today).length;
+  s.isMeet = !s.records.Overall && s.games.some(g => g.place || !g.outcome);
+  s.firsts = s.games.filter(g => /^1st\b/.test(g.place)).length;
+  s.played = dated.filter(g => hasReport(g) && g.date <= today);
+  s.next = dated.filter(g => g.date >= today && !g.result);
+  const lastDate = dated.filter(g => g.date <= today).map(g => g.date).pop();
+  // In season: a game in the next 45 days, or nothing scheduled yet but a game in the
+  // last 4 days (postseason opponents are often announced a few days later).
+  s.inSeason = s.next.some(g => dayDiff(g.date) <= 45) ||
+    (!s.next.length && !!lastDate && dayDiff(lastDate) >= -4);
+  s.status = s.inSeason ? "" : (!s.next.length && lastDate && dayDiff(lastDate) >= -60) ? "season over" : "offseason";
+}
+
+// ---- Favorites and custom order (saved in this browser) ----
+let prefs = { order: [], favs: [] };
+try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem("uvm-prefs") || "{}")); } catch (e) {}
+const savePrefs = () => { try { localStorage.setItem("uvm-prefs", JSON.stringify(prefs)); } catch (e) {} };
+const isFav = (s) => prefs.favs.includes(s.slug);
+// The user's order: saved slugs first, then any others alphabetically.
+function userOrder() {
+  const known = prefs.order.map(slug => sports.find(s => s.slug === slug)).filter(Boolean);
+  const rest = sports.filter(s => !prefs.order.includes(s.slug)).sort((a, b) => a.name.localeCompare(b.name));
+  return known.concat(rest);
+}
+// Display order: favorites, then in-season teams, then the rest, each group in the user's order.
+function ordered() {
+  const group = (s) => isFav(s) ? 0 : s.inSeason ? 1 : 2;
+  return userOrder().map((s, i) => [s, i]).sort((a, b) => group(a[0]) - group(b[0]) || a[1] - b[1]).map(x => x[0]);
+}
+function moveSport(slug, toIndex) {
+  const list = userOrder().map(s => s.slug);
+  const from = list.indexOf(slug);
+  if (from < 0 || toIndex < 0 || toIndex >= list.length) return;
+  list.splice(toIndex, 0, list.splice(from, 1)[0]);
+  prefs.order = list; savePrefs(); render(); renderCustomize();
+}
+function toggleFav(slug) {
+  prefs.favs = prefs.favs.includes(slug) ? prefs.favs.filter(x => x !== slug) : prefs.favs.concat(slug);
+  if (!prefs.favs.length && filter === "favs") filter = "all";
+  savePrefs(); render(); renderCustomize();
+}
+
+let filter = "all";
+try { filter = localStorage.getItem("uvm-filter") || "all"; } catch (e) {}
+if (filter !== "all" && filter !== "favs" && !sports.some(s => s.slug === filter)) filter = "all";
+if (filter === "favs" && !prefs.favs.length) filter = "all";
+
+$("updated").textContent = "Updated " + new Date(DATA.generated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+function renderChips() {
+  const chips = [`<button class="chip" data-f="all" aria-pressed="${filter === "all"}">All sports</button>`];
+  if (prefs.favs.length) chips.push(`<button class="chip" data-f="favs" aria-pressed="${filter === "favs"}">★ Favorites</button>`);
+  chips.push(...ordered().map(s => `<button class="chip${s.inSeason ? "" : " off"}" data-f="${s.slug}" aria-pressed="${filter === s.slug}">${isFav(s) ? "★ " : ""}${esc(short(s.name))}</button>`));
+  chips.push(`<button class="chip customize" data-act="customize">⚙︎ Customize</button>`);
+  $("chips").innerHTML = chips.join("");
+}
+$("chips").addEventListener("click", (e) => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  if (b.dataset.act === "customize") { renderCustomize(); $("cust").showModal(); return; }
+  filter = b.dataset.f;
+  try { localStorage.setItem("uvm-filter", filter); } catch (err) {}
+  render();
+});
+
+const visible = () => filter === "all" ? ordered()
+  : filter === "favs" ? ordered().filter(isFav)
+  : sports.filter(s => s.slug === filter);
+
+function renderCustomize() {
+  const list = userOrder();
+  $("cust-list").innerHTML = list.map((s, i) => `<li draggable="true" data-slug="${s.slug}">
+      <span class="grip" aria-hidden="true">⋮⋮</span>
+      <button class="star${isFav(s) ? " on" : ""}" data-act="fav" aria-pressed="${isFav(s)}" aria-label="Favorite ${esc(s.name)}">${isFav(s) ? "★" : "☆"}</button>
+      <span class="cname">${esc(s.name)}${s.inSeason ? "" : ` <span class="cstat">${s.status}</span>`}</span>
+      <button class="mv" data-act="up" aria-label="Move ${esc(s.name)} up" ${i === 0 ? "disabled" : ""}>↑</button>
+      <button class="mv" data-act="down" aria-label="Move ${esc(s.name)} down" ${i === list.length - 1 ? "disabled" : ""}>↓</button>
+    </li>`).join("");
+}
+$("cust-list").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const slug = b.closest("li").dataset.slug;
+  const i = userOrder().findIndex(s => s.slug === slug);
+  if (b.dataset.act === "fav") toggleFav(slug);
+  if (b.dataset.act === "up") moveSport(slug, i - 1);
+  if (b.dataset.act === "down") moveSport(slug, i + 1);
+});
+let dragSlug = null;
+$("cust-list").addEventListener("dragstart", (e) => { dragSlug = e.target.closest("li")?.dataset.slug; e.dataTransfer.effectAllowed = "move"; });
+$("cust-list").addEventListener("dragover", (e) => { if (dragSlug) { e.preventDefault(); } });
+$("cust-list").addEventListener("drop", (e) => {
+  e.preventDefault();
+  const li = e.target.closest("li"); if (!li || !dragSlug) return;
+  moveSport(dragSlug, userOrder().findIndex(s => s.slug === li.dataset.slug));
+  dragSlug = null;
+});
+$("cust-reset").addEventListener("click", () => { prefs = { order: [], favs: [] }; filter = "all"; savePrefs(); render(); renderCustomize(); });
+$("cust").addEventListener("click", (e) => { if (e.target === $("cust")) $("cust").close(); });
+
+function resultTag(g) {
+  const tag = `<span class="tag ${tagCls(g)}">${esc(g.result || "Recap")}</span>`;
+  const link = bestLink(g);
+  return link ? `<a class="taglink" href="${esc(link)}" target="_blank" rel="noopener" title="Open ${g.links["Box Score"] ? "box score" : g.links.Results ? "results" : "recap"}">${tag}</a>` : tag;
+}
+
+function linkList(g) {
+  return Object.entries(g.links).map(([k, u]) => `<a class="ext" href="${esc(u)}" target="_blank" rel="noopener">${esc(k)}</a>`).join(" · ");
+}
+
+function gameRow(g, s, kind) {
+  const right = kind === "result" ? resultTag(g) : `<span class="time">${esc(g.time)}</span>`;
+  return `<li><div class="d"><b>${fmtDay(g.date)}</b>${fmtWk(g.date)}</div>
+    <div class="opp"><div class="sp">${esc(short(s.name))}</div><div class="nm" title="${esc(g.opponent)} · ${esc(g.location)}">${prefix(g)}${esc(g.opponent)}</div></div>
+    ${right}</li>`;
+}
+
+function renderGames() {
+  const vs = visible();
+  const recent = vs.flatMap(s => s.played.filter(g => dayDiff(g.date) >= -10).map(g => [g, s]))
+    .sort((a, b) => b[0].date.localeCompare(a[0].date)).slice(0, 12);
+  const upcoming = vs.flatMap(s => s.next.filter(g => dayDiff(g.date) <= 10).map(g => [g, s]))
+    .sort((a, b) => a[0].date.localeCompare(b[0].date)).slice(0, 12);
+  $("recent").innerHTML = recent.length ? recent.map(([g, s]) => gameRow(g, s, "result")).join("")
+    : `<li class="empty">No results in the last 10 days.</li>`;
+  $("upcoming").innerHTML = upcoming.length ? upcoming.map(([g, s]) => gameRow(g, s, "next")).join("")
+    : `<li class="empty">Nothing scheduled in the next 10 days.</li>`;
+}
+
+function renderTeams() {
+  $("teams").innerHTML = visible().map(s => {
+    const r = s.records;
+    const last = s.played[s.played.length - 1];
+    const next = s.next[0];
+    const form = s.played.filter(g => g.outcome).slice(-5).map(g => `<i class="${g.outcome}" title="${esc(g.result)} ${esc(g.opponent)}"></i>`).join("");
+    const rec = r.Overall || `${s.done} of ${s.games.length} meets`;
+    const meta = s.isMeet
+      ? (s.firsts ? `${s.firsts} team win${s.firsts > 1 ? "s" : ""} · ${s.season}` : s.season)
+      : [r.Conference && `${r.Conference} conf`, r.Streak && r.Streak !== "-" && r.Streak].filter(Boolean).join(" · ") || s.season;
+    return `<button class="panel team${s.inSeason ? "" : " offseason"}" data-slug="${s.slug}">
+      <div class="name">${isFav(s) ? `<span class="favmark" aria-label="Favorite">★</span> ` : ""}${esc(s.name)}</div>
+      <div class="rec">${esc(rec)}</div>
+      <div class="meta">${esc(meta)}${s.inSeason ? "" : ` · ${s.status}`}</div>
+      ${form ? `<div class="form">${form}</div>` : ""}
+      ${last ? `<div class="line"><span class="tag ${tagCls(last)}">${esc(last.result || "Recap")}</span><span>${s.isMeet ? "" : prefix(last)}${esc(last.opponent)}</span></div>` : ""}
+      ${next ? `<div class="line"><span class="meta">Next ${fmtDay(next.date)}</span><span>${prefix(next)}${esc(next.opponent)}</span></div>` : ""}
+    </button>`;
+  }).join("");
+}
+$("teams").addEventListener("click", (e) => {
+  const b = e.target.closest(".team"); if (b) openSport(b.dataset.slug);
+});
+
+function openSport(slug) {
+  const s = sports.find(x => x.slug === slug);
+  $("dlg-title").innerHTML = `${esc(s.name)} <button class="star${isFav(s) ? " on" : ""}" id="dlg-fav" aria-pressed="${isFav(s)}" aria-label="Favorite ${esc(s.name)}">${isFav(s) ? "★" : "☆"}</button>`;
+  $("dlg-fav").onclick = () => { toggleFav(slug); openSport(slug); };
+  $("dlg-sub").innerHTML = `${esc(s.season)} season · <a class="ext" href="${esc(s.schedule_url)}" target="_blank" rel="noopener">Official schedule ↗</a>`;
+  const recs = Object.entries(s.records).filter(([, v]) => v && v !== "-")
+    .map(([k, v]) => `<div>${esc(k)}<b>${esc(v)}</b></div>`).join("");
+  let html = recs ? `<div class="recs">${recs}</div>` : "";
+  if (s.standings.length) {
+    const cols = Object.keys(s.standings[0]);
+    const textCol = (c) => c === "School";
+    html += `<h2>${esc(s.standings_source)} standings <a class="ext" href="${esc(s.standings_url)}" target="_blank" rel="noopener" style="text-transform:none;letter-spacing:0">source ↗</a></h2><div class="tbl-wrap"><table><thead><tr>${cols.map(c => `<th class="${textCol(c) ? "" : "num"}">${esc(c)}</th>`).join("")}</tr></thead><tbody>` +
+      s.standings.map(r => `<tr class="${/^vermont$/i.test(r.School) ? "us" : ""}">${cols.map(c => `<td class="${textCol(c) ? "" : "num"}">${esc(r[c])}</td>`).join("")}</tr>`).join("") +
+      `</tbody></table></div>`;
+  }
+  html += `<h2>${s.isMeet ? "Meets &amp; results" : "Schedule &amp; results"}</h2><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Time</th><th></th><th>${s.isMeet ? "Meet" : "Opponent"}</th><th>Result</th><th>Links</th><th>Location</th></tr></thead><tbody>` +
+    s.games.map(g => `<tr class="${g.date && g.date >= today && !g.result ? "future" : ""}">
+      <td>${esc(g.date_label)}</td><td>${esc(g.time)}</td><td>${esc(g.home_away)}</td>
+      <td>${esc(g.opponent)}${g.tournament ? ` <span style="color:var(--muted)">(${esc(g.tournament)})</span>` : ""}</td>
+      <td>${g.result ? `<span class="tag ${tagCls(g)}">${esc(g.result)}</span>` : ""}</td>
+      <td>${linkList(g)}</td>
+      <td>${esc(g.location)}</td></tr>`).join("") +
+    `</tbody></table></div>`;
+  $("dlg-body").innerHTML = html;
+  if (!$("dlg").open) $("dlg").showModal();
+}
+$("dlg").addEventListener("click", (e) => { if (e.target === $("dlg")) $("dlg").close(); });
+
+function renderNews() {
+  const names = filter === "all" ? null : visible().map(s => s.name);
+  const name = filter !== "all" && filter !== "favs" ? names[0] : null;
+  const items = DATA.news.filter(n => !names || names.includes(n.sport)).slice(0, 12);
+  $("news").innerHTML = items.length ? items.map(n => `<li><a href="${esc(n.link)}" target="_blank" rel="noopener">
+      ${n.image ? `<img src="${esc(n.image)}" alt="" loading="lazy">` : `<span></span>`}
+      <div><div class="t">${esc(n.title)}</div><div class="s">${esc(short(n.sport))} · ${new Date(n.published).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div></div>
+    </a></li>`).join("") : `<li class="empty">No recent stories${name ? " for " + esc(name) : ""}.</li>`;
+}
+
+function render() { renderChips(); renderGames(); renderTeams(); renderNews(); }
+render();
+</script>
+</body>
+</html>
