@@ -2,8 +2,12 @@ name: Refresh dashboard
 
 on:
   schedule:
-    # Once a day at 11:00 UTC (6 a.m. EST / 7 a.m. EDT), after the previous night's games are final.
-    - cron: "0 11 * * *"
+    # Goal: 5 a.m. Eastern every day, after the previous night's games are final.
+    # GitHub cron only speaks UTC, so schedule both possible times and let the
+    # "gate" job keep the one that is 5 a.m. in New York today:
+    #   09:00 UTC = 5 a.m. EDT (summer)     10:00 UTC = 5 a.m. EST (winter)
+    - cron: "0 9 * * *"
+    - cron: "0 10 * * *"
   workflow_dispatch: # lets you run it by hand from the Actions tab
   push:
     branches: [main]
@@ -18,7 +22,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write # only for the keepalive step below
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - name: Keep the schedule alive
+        # GitHub disables scheduled workflows in public repos after 60 days without
+        # repository activity. Re-enabling the workflow through the API counts as
+        # activity and resets that timer, so no dummy commits are needed.
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/refresh.yml/enable"
+
+      - id: check
+        name: Is it the 5 a.m. Eastern run?
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          # Pushes and manual runs always build.
+          if [ "$EVENT" != "schedule" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # Decide from which cron fired (not the clock), so a delayed start still counts.
+          zone=$(TZ=America/New_York date +%Z)
+          if { [ "$zone" = "EDT" ] && [ "$SCHEDULE" = "0 9 * * *" ]; } ||
+             { [ "$zone" = "EST" ] && [ "$SCHEDULE" = "0 10 * * *" ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping: '$SCHEDULE' is not 5 a.m. in New York while on $zone"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

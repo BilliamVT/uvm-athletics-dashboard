@@ -158,6 +158,12 @@ a.ext { color: var(--accent); font-size: 13px; }
 .cstat { font-size: 12px; color: var(--muted); }
 .mv { font: inherit; width: 30px; height: 30px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 6px; cursor: pointer; }
 .mv:disabled { opacity: .35; cursor: default; }
+.vis { font: inherit; font-size: 12px; min-width: 52px; height: 30px; border: 1px solid var(--border); background: none; color: var(--muted); border-radius: 6px; cursor: pointer; }
+.vis[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.cust-list li.hidden-team .cname, .cust-list li.hidden-team .star { opacity: .45; }
+.cust-list li.hidden-team .cname { text-decoration: line-through; }
+.switch-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; cursor: pointer; font-size: 14px; }
+.switch-row input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
 footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
 </style>
 </head>
@@ -198,10 +204,14 @@ footer { color: var(--muted); font-size: 12px; padding: 0 0 30px; }
 <dialog id="cust" aria-labelledby="cust-title">
   <div class="dlg-head">
     <div><h3 id="cust-title">Customize teams</h3>
-      <div style="color:var(--muted);font-size:13px">Star your favorites and drag (or use the arrows) to set the order. Favorites show first, then teams in season; finished seasons drop to the end. Saved in this browser.</div></div>
+      <div style="color:var(--muted);font-size:13px">Star favorites, hide teams you don't follow, and drag (or use the arrows) to set the order. Favorites show first, then teams in season. Saved in this browser.</div></div>
     <button class="close" aria-label="Close" onclick="document.getElementById('cust').close()">×</button>
   </div>
   <div class="dlg-body">
+    <label class="switch-row">
+      <input type="checkbox" id="cust-off" aria-label="Show out-of-season teams">
+      <span><b>Show out-of-season teams</b><br><span class="cstat">When off, only teams in season (plus your favorites) appear.</span></span>
+    </label>
     <ul class="cust-list" id="cust-list"></ul>
     <button class="chip" id="cust-reset" style="margin-top:12px">Reset to default</button>
   </div>
@@ -256,10 +266,15 @@ for (const s of sports) {
 }
 
 // ---- Favorites and custom order (saved in this browser) ----
-let prefs = { order: [], favs: [] };
+const DEFAULT_PREFS = () => ({ order: [], favs: [], hidden: [], showOff: true });
+let prefs = DEFAULT_PREFS();
 try { prefs = Object.assign(prefs, JSON.parse(localStorage.getItem("uvm-prefs") || "{}")); } catch (e) {}
 const savePrefs = () => { try { localStorage.setItem("uvm-prefs", JSON.stringify(prefs)); } catch (e) {} };
 const isFav = (s) => prefs.favs.includes(s.slug);
+const isHidden = (s) => prefs.hidden.includes(s.slug);
+// Teams that appear on the page: not hidden, and in season unless "show out of season" is on.
+// Favorites stay visible even out of season.
+const shown = () => ordered().filter(s => !isHidden(s) && (prefs.showOff || s.inSeason || isFav(s)));
 // The user's order: saved slugs first, then any others alphabetically.
 function userOrder() {
   const known = prefs.order.map(slug => sports.find(s => s.slug === slug)).filter(Boolean);
@@ -280,21 +295,27 @@ function moveSport(slug, toIndex) {
 }
 function toggleFav(slug) {
   prefs.favs = prefs.favs.includes(slug) ? prefs.favs.filter(x => x !== slug) : prefs.favs.concat(slug);
-  if (!prefs.favs.length && filter === "favs") filter = "all";
   savePrefs(); render(); renderCustomize();
+}
+function toggleHidden(slug) {
+  prefs.hidden = prefs.hidden.includes(slug) ? prefs.hidden.filter(x => x !== slug) : prefs.hidden.concat(slug);
+  savePrefs(); render(); renderCustomize();
+}
+// Fall back to "All sports" if the selected filter no longer has anything to show.
+function fixFilter() {
+  if (filter === "favs" && !shown().some(isFav)) filter = "all";
+  if (filter !== "all" && filter !== "favs" && !shown().some(s => s.slug === filter)) filter = "all";
 }
 
 let filter = "all";
 try { filter = localStorage.getItem("uvm-filter") || "all"; } catch (e) {}
-if (filter !== "all" && filter !== "favs" && !sports.some(s => s.slug === filter)) filter = "all";
-if (filter === "favs" && !prefs.favs.length) filter = "all";
 
 $("updated").textContent = "Updated " + new Date(DATA.generated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 function renderChips() {
   const chips = [`<button class="chip" data-f="all" aria-pressed="${filter === "all"}">All sports</button>`];
-  if (prefs.favs.length) chips.push(`<button class="chip" data-f="favs" aria-pressed="${filter === "favs"}">★ Favorites</button>`);
-  chips.push(...ordered().map(s => `<button class="chip${s.inSeason ? "" : " off"}" data-f="${s.slug}" aria-pressed="${filter === s.slug}">${isFav(s) ? "★ " : ""}${esc(short(s.name))}</button>`));
+  if (shown().some(isFav)) chips.push(`<button class="chip" data-f="favs" aria-pressed="${filter === "favs"}">★ Favorites</button>`);
+  chips.push(...shown().map(s => `<button class="chip${s.inSeason ? "" : " off"}" data-f="${s.slug}" aria-pressed="${filter === s.slug}">${isFav(s) ? "★ " : ""}${esc(short(s.name))}</button>`));
   chips.push(`<button class="chip customize" data-act="customize">⚙︎ Customize</button>`);
   $("chips").innerHTML = chips.join("");
 }
@@ -306,16 +327,18 @@ $("chips").addEventListener("click", (e) => {
   render();
 });
 
-const visible = () => filter === "all" ? ordered()
-  : filter === "favs" ? ordered().filter(isFav)
-  : sports.filter(s => s.slug === filter);
+const visible = () => filter === "all" ? shown()
+  : filter === "favs" ? shown().filter(isFav)
+  : shown().filter(s => s.slug === filter);
 
 function renderCustomize() {
   const list = userOrder();
-  $("cust-list").innerHTML = list.map((s, i) => `<li draggable="true" data-slug="${s.slug}">
+  $("cust-off").checked = prefs.showOff;
+  $("cust-list").innerHTML = list.map((s, i) => `<li draggable="true" data-slug="${s.slug}" class="${isHidden(s) ? "hidden-team" : ""}">
       <span class="grip" aria-hidden="true">⋮⋮</span>
       <button class="star${isFav(s) ? " on" : ""}" data-act="fav" aria-pressed="${isFav(s)}" aria-label="Favorite ${esc(s.name)}">${isFav(s) ? "★" : "☆"}</button>
-      <span class="cname">${esc(s.name)}${s.inSeason ? "" : ` <span class="cstat">${s.status}</span>`}</span>
+      <span class="cname">${esc(s.name)}${isHidden(s) ? ` <span class="cstat">hidden</span>` : s.inSeason ? "" : ` <span class="cstat">${s.status}</span>`}</span>
+      <button class="vis" data-act="hide" aria-pressed="${isHidden(s)}" aria-label="${isHidden(s) ? "Show" : "Hide"} ${esc(s.name)}">${isHidden(s) ? "Show" : "Hide"}</button>
       <button class="mv" data-act="up" aria-label="Move ${esc(s.name)} up" ${i === 0 ? "disabled" : ""}>↑</button>
       <button class="mv" data-act="down" aria-label="Move ${esc(s.name)} down" ${i === list.length - 1 ? "disabled" : ""}>↓</button>
     </li>`).join("");
@@ -325,6 +348,7 @@ $("cust-list").addEventListener("click", (e) => {
   const slug = b.closest("li").dataset.slug;
   const i = userOrder().findIndex(s => s.slug === slug);
   if (b.dataset.act === "fav") toggleFav(slug);
+  if (b.dataset.act === "hide") toggleHidden(slug);
   if (b.dataset.act === "up") moveSport(slug, i - 1);
   if (b.dataset.act === "down") moveSport(slug, i + 1);
 });
@@ -337,7 +361,8 @@ $("cust-list").addEventListener("drop", (e) => {
   moveSport(dragSlug, userOrder().findIndex(s => s.slug === li.dataset.slug));
   dragSlug = null;
 });
-$("cust-reset").addEventListener("click", () => { prefs = { order: [], favs: [] }; filter = "all"; savePrefs(); render(); renderCustomize(); });
+$("cust-reset").addEventListener("click", () => { prefs = DEFAULT_PREFS(); filter = "all"; savePrefs(); render(); renderCustomize(); });
+$("cust-off").addEventListener("change", (e) => { prefs.showOff = e.target.checked; savePrefs(); render(); renderCustomize(); });
 $("cust").addEventListener("click", (e) => { if (e.target === $("cust")) $("cust").close(); });
 
 function resultTag(g) {
@@ -370,7 +395,12 @@ function renderGames() {
 }
 
 function renderTeams() {
-  $("teams").innerHTML = visible().map(s => {
+  const list = visible();
+  if (!list.length) {
+    $("teams").innerHTML = `<div class="panel empty">No teams to show. Use ⚙︎ Customize to unhide teams or show out-of-season teams.</div>`;
+    return;
+  }
+  $("teams").innerHTML = list.map(s => {
     const r = s.records;
     const last = s.played[s.played.length - 1];
     const next = s.next[0];
@@ -431,7 +461,7 @@ function renderNews() {
     </a></li>`).join("") : `<li class="empty">No recent stories${name ? " for " + esc(name) : ""}.</li>`;
 }
 
-function render() { renderChips(); renderGames(); renderTeams(); renderNews(); }
+function render() { fixFilter(); renderChips(); renderGames(); renderTeams(); renderNews(); }
 render();
 </script>
 </body>

@@ -353,7 +353,11 @@ def parse_news(xml_text: str, limit: int = 20) -> list[NewsItem]:
 # --------------------------------------------------------------------------- #
 def collect(refresh: bool) -> dict:
     sports: list[Sport] = []
-    for slug in discover_sports(refresh):
+    seen_ids: set[str] = set()
+    # The site sometimes links one team under two slugs (e.g. "mens-soccer" and
+    # "msoc"). Try the known full slugs first, then skip any schedule already seen.
+    slugs = sorted(discover_sports(refresh), key=lambda s: (s not in FALLBACK_SPORTS, s))
+    for slug in slugs:
         print(f"  {slug}")
         try:
             sched_page = fetch(f"{BASE}/sports/{slug}/schedule", refresh=refresh)
@@ -361,6 +365,10 @@ def collect(refresh: bool) -> dict:
             if not sid:
                 sports.append(Sport(slug=slug, name=slug, error="No schedule found"))
                 continue
+            if sid in seen_ids:
+                print(f"    duplicate of an earlier sport (schedule {sid}), skipping")
+                continue
+            seen_ids.add(sid)
             txt = fetch(f"{BASE}/services/schedule_txt.ashx?schedule={sid}", refresh=refresh)
             sport = parse_schedule_txt(slug, txt)
             merge_html_extras(sport, parse_schedule_html(sched_page))
