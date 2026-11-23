@@ -114,7 +114,8 @@ class Game:
     place: str = ""           # team finish at a meet, e.g. "1st, 30 Pts"
     opp_rank: str = ""        # opponent's national rank as UVM lists it, e.g. "7"
     opp_seed: str = ""        # opponent's seed in a conference/NCAA tournament game
-    result_note: str = ""     # extra result detail, e.g. "OT (UVM Advances 6-5 on PKs)"
+    result_note: str = ""     # extra result detail, e.g. "OT" or "Won 6-5 on PKs"
+    shootout: str = ""        # "W"/"L" if a tie was decided by a shootout, else ""
     tv: str = ""              # where to watch, e.g. "ESPN+" or "ESPN+/NESN"
     radio: str = ""           # radio station, e.g. "WVMT"
     links: dict[str, str] = field(default_factory=dict)  # "Recap"/"Results"/"Box Score" -> URL
@@ -176,6 +177,28 @@ LINK_LABELS = [  # (pattern on link text/url, label shown on the dashboard)
 ]
 
 
+def describe_note(note: str) -> tuple[str, str]:
+    """Turn the text after a score into a short note, and say who won any shootout.
+
+    NCAA records count shootouts as ties, so UVM lists those games as "T 0-0" and
+    adds who won: "OT (UVM 6-5 shootout)", "OT (UVM Advances 6-5 on PKs)",
+    "OT (Bryant 4-3 PK Shootout)". The winner is named first, so if it's UVM,
+    UVM won.
+        "OT (UVM Advances 6-5 on PKs)" -> ("Won 6-5 on PKs", "W")
+        "OT (Yale 5-4 shootout)"       -> ("Lost 5-4 in shootout", "L")
+        "OT"                           -> ("OT", "")
+    """
+    m = re.search(r'\((.*)\)', note)
+    inner = m.group(1) if m else ""
+    if re.search(r'shoot|\bPKs?\b|penalt', inner, re.I):
+        won = re.match(r'\s*(UVM|Vermont)\b', inner, re.I) is not None
+        score = re.search(r'\d+-\d+', inner)
+        how = "on PKs" if re.search(r'\bPKs?\b|penalt', inner, re.I) else "in shootout"
+        return f"{'Won' if won else 'Lost'}{' ' + score.group(0) if score else ''} {how}", "W" if won else "L"
+    # Anything else: "OT (note)" -> "OT · note"
+    return re.sub(r'^(\S+)\s*\((.*)\)$', r'\1 · \2', note), ""
+
+
 def parse_schedule_html(page: str) -> list[dict]:
     """Per-game extras from the rendered schedule page.
 
@@ -201,7 +224,7 @@ def parse_schedule_html(page: str) -> list[dict]:
         # Anything after the score: overtime and shootout notes, e.g. "OT (UVM Advances 6-5 on PKs)".
         note_spans = [x for x in spans if x and x != place and not re.fullmatch(r'[WLT],?|\d+-\d+', x)]
         # "OT (UVM 6-5 shootout)" -> "OT · UVM 6-5 shootout"
-        result_note = re.sub(r'^(\S+)\s*\((.*)\)$', r'\1 · \2', " ".join(note_spans))
+        result_note, shootout = describe_note(" ".join(note_spans))
         links: dict[str, str] = {}
         for href, label in re.findall(r'<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', block, re.S):
             label_text = _text(label)
@@ -226,6 +249,7 @@ def parse_schedule_html(page: str) -> list[dict]:
             "date_label": _text(date_m.group(1)) if date_m else "",
             "place": place,
             "result_note": result_note,
+            "shootout": shootout,
             "links": links,
         })
     return games
@@ -243,6 +267,7 @@ def merge_html_extras(sport: Sport, extras: list[dict]) -> None:
             continue
         game.place = extra["place"]
         game.result_note = extra["result_note"]
+        game.shootout = extra["shootout"]
         game.links = extra["links"]
         game.opp_rank = extra["opp_rank"]
         game.opp_seed = extra["opp_seed"]

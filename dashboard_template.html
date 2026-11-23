@@ -132,6 +132,9 @@ h2 .count { text-transform: none; letter-spacing: 0; font-weight: 400; margin-le
 .W { color: var(--win); background: var(--win-bg); }
 .L { color: var(--loss); background: var(--loss-bg); }
 .T { color: var(--tie); background: var(--tie-bg); }
+/* Tie decided by a shootout: win/loss colors plus a thin outline to set it apart from a W/L. */
+.T.SW { color: var(--win); background: var(--win-bg); box-shadow: inset 0 0 0 1px currentColor; border-radius: 6px; }
+.T.SL { color: var(--loss); background: var(--loss-bg); box-shadow: inset 0 0 0 1px currentColor; border-radius: 6px; }
 .P { color: var(--place); background: var(--place-bg); }
 .N { color: var(--muted); background: var(--surface-2); font-weight: 500; }
 a.taglink { text-decoration: none; }
@@ -314,7 +317,9 @@ const uvmRank = (s) => s.inSeason && s.rank && s.rank.rank
 const sports = DATA.sports.filter(s => !s.error && s.games.length);
 const hasReport = (g) => g.result || g.links.Recap || g.links.Results;
 const bestLink = (g) => g.links["Box Score"] || g.links.Results || g.links.Recap || "";
-const tagCls = (g) => g.outcome || (g.place ? "P" : "N");
+// Shootout ties keep the official "T" text but take the color of who won the shootout.
+const tagCls = (g) => g.outcome === "T" && g.shootout ? `T S${g.shootout}` : g.outcome || (g.place ? "P" : "N");
+const formCls = (g) => g.outcome === "T" && g.shootout ? g.shootout : g.outcome;
 for (const s of sports) {
   const dated = s.games.filter(g => g.date);
   s.done = dated.filter(g => g.date < today).length;
@@ -557,7 +562,7 @@ function renderTeams() {
     const r = s.records;
     const last = s.played[s.played.length - 1];
     const next = s.next[0];
-    const form = s.played.filter(g => g.outcome).slice(-5).map(g => `<i class="${g.outcome}" title="${esc(g.result)} ${esc(g.opponent)}"></i>`).join("");
+    const form = s.played.filter(g => g.outcome).slice(-5).map(g => `<i class="${formCls(g)}" title="${esc(g.result)}${g.result_note ? " (" + esc(g.result_note) + ")" : ""} ${esc(g.opponent)}"></i>`).join("");
     const rec = r.Overall || `${s.done} of ${s.games.length} meets`;
     const meta = s.isMeet
       ? (s.firsts ? `${s.firsts} team win${s.firsts > 1 ? "s" : ""} · ${s.season}` : s.season)
