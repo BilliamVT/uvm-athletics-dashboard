@@ -2,12 +2,21 @@ name: Refresh dashboard
 
 on:
   schedule:
-    # Goal: 5 a.m. Eastern every day, after the previous night's games are final.
-    # GitHub cron only speaks UTC, so schedule both possible times and let the
-    # "gate" job keep the one that is 5 a.m. in New York today:
-    #   09:00 UTC = 5 a.m. EDT (summer)     10:00 UTC = 5 a.m. EST (winter)
-    - cron: "0 9 * * *"
-    - cron: "0 10 * * *"
+    # GitHub's scheduler starts runs late when its queue is busy. Our first slot
+    # (09:00-10:00 UTC, on the hour) ran 7-8 hours late every day, so the main build
+    # is now at an off-peak time (middle of the night in the US, before Europe's
+    # morning) and an odd minute, away from the on-the-hour rush.
+    #
+    # Main build: 1:37 a.m. Eastern, after the night's games are final. GitHub cron
+    # only speaks UTC, so schedule both possible times and let the "gate" job keep
+    # the one that is 1:37 a.m. in New York today:
+    #   05:37 UTC = 1:37 a.m. EDT (summer)     06:37 UTC = 1:37 a.m. EST (winter)
+    - cron: "37 5 * * *"
+    - cron: "37 6 * * *"
+    # Backup build (always runs): 10:41 a.m. EST / 11:41 a.m. EDT. If the main build
+    # was late or dropped, this one still updates the page that day; otherwise it
+    # just rebuilds the same data.
+    - cron: "41 15 * * *"
   workflow_dispatch: # lets you run it by hand from the Actions tab
   push:
     branches: [main]
@@ -39,20 +48,24 @@ jobs:
         run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/refresh.yml/enable"
 
       - id: check
-        name: Is it the 5 a.m. Eastern run?
+        name: Should this run build?
         env:
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
         run: |
           # Pushes and manual runs always build.
           if [ "$EVENT" != "schedule" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # The backup run always builds; only the 1:37 a.m. pair is gated.
+          if [ "$SCHEDULE" != "37 5 * * *" ] && [ "$SCHEDULE" != "37 6 * * *" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           # Decide from which cron fired (not the clock), so a delayed start still counts.
           zone=$(TZ=America/New_York date +%Z)
-          if { [ "$zone" = "EDT" ] && [ "$SCHEDULE" = "0 9 * * *" ]; } ||
-             { [ "$zone" = "EST" ] && [ "$SCHEDULE" = "0 10 * * *" ]; }; then
+          if { [ "$zone" = "EDT" ] && [ "$SCHEDULE" = "37 5 * * *" ]; } ||
+             { [ "$zone" = "EST" ] && [ "$SCHEDULE" = "37 6 * * *" ]; }; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Skipping: '$SCHEDULE' is not 5 a.m. in New York while on $zone"
+            echo "Skipping: '$SCHEDULE' is not 1:37 a.m. in New York while on $zone"
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 

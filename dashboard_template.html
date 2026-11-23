@@ -105,6 +105,7 @@ h2 .count { text-transform: none; letter-spacing: 0; font-weight: 400; margin-le
 .games { list-style: none; margin: 0; padding: 4px 0; }
 .games li.is-today { box-shadow: inset 3px 0 0 var(--gold); }
 .time { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.rnote { font-size: 12px; color: var(--muted); margin-top: 1px; }
 .tvname { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .today { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 .tcard { padding: 12px 14px; border-left: 3px solid var(--gold); display: flex; flex-direction: column; gap: 4px; }
@@ -473,7 +474,7 @@ function gameRow(g, s, kind) {
   const right = kind === "result" ? resultTag(g)
     : `<span class="time">${esc(g.time)}${g.tv ? `<span class="tvname">${esc(g.tv)}</span>` : ""}</span>`;
   return `<li class="${g.date === today ? "is-today" : ""}"><div class="d"><b>${fmtDay(g.date)}</b>${fmtWk(g.date)}</div>
-    <div class="opp"><div class="sp">${esc(short(s.name))}</div><div class="nm" title="${esc(g.opponent)} · ${esc(g.location)}">${prefix(g)}${oppName(g)}</div></div>
+    <div class="opp"><div class="sp">${esc(short(s.name))}</div><div class="nm" title="${esc(g.opponent)} · ${esc(g.location)}">${prefix(g)}${oppName(g)}</div>${kind === "result" && g.result_note ? `<div class="rnote">${esc(g.result_note)}</div>` : ""}</div>
     ${right}</li>`;
 }
 
@@ -518,7 +519,7 @@ function renderToday() {
   $("today").innerHTML = games.map(([g, s]) => `<div class="panel tcard${g.result ? " final" : ""}">
       <div class="sp">${esc(short(s.name))}${g.tournament ? ` · ${esc(g.tournament)}` : ""}</div>
       <div class="tnm">${s.isMeet ? "" : prefix(g)}${oppName(g)}</div>
-      <div class="tmeta">${g.result ? resultTag(g) : `<b>${esc(g.time)}</b>`}${g.tv ? ` <span>· ${esc(g.tv)}</span>` : ""}${g.radio ? ` <span>· ${esc(g.radio)}</span>` : ""}</div>
+      <div class="tmeta">${g.result ? resultTag(g) + (g.result_note ? ` <span>${esc(g.result_note)}</span>` : "") : `<b>${esc(g.time)}</b>`}${g.tv ? ` <span>· ${esc(g.tv)}</span>` : ""}${g.radio ? ` <span>· ${esc(g.radio)}</span>` : ""}</div>
       <div class="tloc">${esc(g.location)}</div>
       <div class="tlinks">${g.result ? btn(g, "Box Score") + btn(g, "Recap") : btn(g, "Watch") + btn(g, "Live Stats")}</div>
     </div>`).join("");

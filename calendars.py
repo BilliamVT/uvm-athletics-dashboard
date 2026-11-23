@@ -83,7 +83,8 @@ def _event_lines(sport: dict, game: dict, stamp: str) -> list[str]:
     team = f"UVM {_short(sport['name'])}"
     if outcome and result.startswith(outcome):
         score = result[len(outcome):].strip()
-        summary = f"[{outcome}] {team} {where}{opp}" + (f" ({score})" if score else "")
+        detail = ", ".join(x for x in (score, game.get("result_note", "")) if x)
+        summary = f"[{outcome}] {team} {where}{opp}" + (f" ({detail})" if detail else "")
     elif game.get("place"):
         rank, _, pts = game["place"].partition(",")
         summary = f"[{rank.strip()}] {team}: {opp}" + (f" ({pts.strip()})" if pts.strip() else "")

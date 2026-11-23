@@ -24,14 +24,23 @@ python3 hockey_east.py               # print Hockey East standings on their own
 | `calendars/` | Generated `.ics` calendar files (published with the site). |
 | `.cache/` | Cached downloads (safe to delete). |
 
-## Daily refresh on GitHub
+## Automatic refresh on GitHub
 
-`.github/workflows/refresh.yml` rebuilds the dashboard every day at 5 a.m. Eastern,
-year-round, and publishes it with GitHub Pages. GitHub's scheduler only uses UTC, so the
-workflow is scheduled at both 09:00 and 10:00 UTC and a small "gate" job keeps whichever one
-is 5 a.m. in New York that day (the other shows as a skipped run). GitHub can start scheduled
-runs some minutes late. It also runs on every push
-to `main`, and you can trigger it by hand from the repo's **Actions** tab.
+`.github/workflows/refresh.yml` rebuilds the dashboard and publishes it with GitHub Pages:
+
+- **1:37 a.m. Eastern, year-round** (main build, after the night's games are final).
+  GitHub's scheduler only uses UTC, so this is scheduled at both 05:37 and 06:37 UTC and a
+  small "gate" job keeps whichever one is 1:37 a.m. in New York that day (the other shows as
+  a skipped run).
+- **Backup at 15:41 UTC** (10:41 a.m. EST / 11:41 a.m. EDT), in case the main build was late
+  or dropped.
+- On every push to `main`, and by hand from the repo's **Actions** tab.
+
+GitHub's free scheduler starts runs late when its queue is busy. The original 5 a.m. slot
+(09:00/10:00 UTC, on the hour) ran 7–8 hours late every day, so the main build moved to an
+off-peak time and an odd minute. The "Updated" time at the top of the dashboard shows when the
+last build actually ran. If it keeps showing late times, the fallback is an outside scheduler
+(e.g. cron-job.org) triggering the workflow at an exact time.
 
 One-time setup: push this folder to a GitHub repo, then in **Settings → Pages** set
 **Source** to **GitHub Actions**. Pages on a private repo needs a paid GitHub plan.

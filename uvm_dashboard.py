@@ -114,6 +114,7 @@ class Game:
     place: str = ""           # team finish at a meet, e.g. "1st, 30 Pts"
     opp_rank: str = ""        # opponent's national rank as UVM lists it, e.g. "7"
     opp_seed: str = ""        # opponent's seed in a conference/NCAA tournament game
+    result_note: str = ""     # extra result detail, e.g. "OT (UVM Advances 6-5 on PKs)"
     tv: str = ""              # where to watch, e.g. "ESPN+" or "ESPN+/NESN"
     radio: str = ""           # radio station, e.g. "WVMT"
     links: dict[str, str] = field(default_factory=dict)  # "Recap"/"Results"/"Box Score" -> URL
@@ -196,7 +197,11 @@ def parse_schedule_html(page: str) -> list[dict]:
         date_m = re.search(r'sidearm-schedule-game-opponent-date[^>]*>\s*<span[^>]*>(.*?)</span>', block, re.S)
         res = re.search(r'sidearm-schedule-game-result[^>]*>(.*?)</div>', block, re.S)
         spans = [_text(s) for s in re.findall(r'<span[^>]*>(.*?)</span>', res.group(1), re.S)] if res else []
-        place = next((s for s in spans if re.match(r'\d+(st|nd|rd|th)\b', s)), "")
+        place = next((s for s in spans if re.match(r'(T-)?\d+(st|nd|rd|th)\b', s)), "")  # "T-3rd" = tied
+        # Anything after the score: overtime and shootout notes, e.g. "OT (UVM Advances 6-5 on PKs)".
+        note_spans = [x for x in spans if x and x != place and not re.fullmatch(r'[WLT],?|\d+-\d+', x)]
+        # "OT (UVM 6-5 shootout)" -> "OT · UVM 6-5 shootout"
+        result_note = re.sub(r'^(\S+)\s*\((.*)\)$', r'\1 · \2', " ".join(note_spans))
         links: dict[str, str] = {}
         for href, label in re.findall(r'<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', block, re.S):
             label_text = _text(label)
@@ -220,6 +225,7 @@ def parse_schedule_html(page: str) -> list[dict]:
             "radio": _text(radio.group(1)) if radio else "",
             "date_label": _text(date_m.group(1)) if date_m else "",
             "place": place,
+            "result_note": result_note,
             "links": links,
         })
     return games
@@ -236,6 +242,7 @@ def merge_html_extras(sport: Sport, extras: list[dict]) -> None:
         if not extra:
             continue
         game.place = extra["place"]
+        game.result_note = extra["result_note"]
         game.links = extra["links"]
         game.opp_rank = extra["opp_rank"]
         game.opp_seed = extra["opp_seed"]
